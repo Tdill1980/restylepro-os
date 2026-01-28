@@ -1,0 +1,419 @@
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useSubscriptionLimits } from "./useSubscriptionLimits";
+import { FadeStyleId } from "@/lib/fadeStyles";
+import { buildFadeSpec, buildStudioLock, type FadeStyleKey } from "@/lib/fadeSpecs";
+
+type KitSize = "small" | "medium" | "large" | "xl";
+type RoofSize = "none" | "small" | "medium" | "large";
+export type FadeStyle = FadeStyleId;
+
+// Strict hex validator - no silent fallbacks
+function isValidHex(hex?: string): boolean {
+  return typeof hex === 'string' && /^#[0-9A-Fa-f]{6}$/.test(hex);
+}
+
+// Helper to get user email with robust retry
+const getUserEmail = async (): Promise<string | null> => {
+  let { data: { session } } = await supabase.auth.getSession();
+  if (session?.user?.email) return session.user.email;
+  
+  let { data: { user } } = await supabase.auth.getUser();
+  if (user?.email) return user.email;
+  
+  const refreshResult = await supabase.auth.refreshSession();
+  if (refreshResult.data?.session?.user?.email) return refreshResult.data.session.user.email;
+  
+  for (let i = 0; i < 3; i++) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const result = await supabase.auth.getSession();
+    if (result.data?.session?.user?.email) return result.data.session.user.email;
+  }
+  
+  console.warn('getUserEmail: All attempts failed');
+  return null;
+};
+
+export const useFadeWrapLogic = () => {
+  const { toast } = useToast();
+  const { checkCanGenerate, incrementRenderCount } = useSubscriptionLimits();
+  const [selectedPattern, setSelectedPattern] = useState<any>(null);
+  const [selectedFinish, setSelectedFinish] = useState<'Gloss' | 'Satin' | 'Matte' | 'Sparkle'>('Gloss');
+  const [fadeStyle, setFadeStyle] = useState<FadeStyle>('front_back');
+  const [kitSize, setKitSize] = useState<KitSize>("medium");
+  const [addHood, setAddHood] = useState(false);
+  const [addFrontBumper, setAddFrontBumper] = useState(false);
+  const [addRearBumper, setAddRearBumper] = useState(false);
+  const [roofSize, setRoofSize] = useState<RoofSize>("none");
+  const [showFallback, setShowFallback] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  const [visualizationId, setVisualizationId] = useState<string | null>(null);
+  const [additionalViews, setAdditionalViews] = useState<any[]>([]);
+  const [isGeneratingAdditional, setIsGeneratingAdditional] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  const clearLastRender = () => {
+    localStorage.removeItem('fadewraps-last-render');
+    localStorage.removeItem('fadewraps-additional-views');
+    setGeneratedImageUrl(null);
+    setAdditionalViews([]);
+  };
+
+  const kitPrices = { small: 600, medium: 710, large: 825, xl: 990 };
+  const addonPrices = { hood: 160, frontBumper: 200, rearBumper: 395 };
+  const roofPrices = { none: 0, small: 160, medium: 225, large: 330 };
+
+  const calculateTotal = () => {
+    let total = kitPrices[kitSize];
+    if (addHood) total += addonPrices.hood;
+    if (addFrontBumper) total += addonPrices.frontBumper;
+    if (addRearBumper) total += addonPrices.rearBumper;
+    if (roofSize !== "none") total += roofPrices[roofSize];
+    return total;
+  };
+
+  const generateRender = async (year: string, make: string, model: string, revisionPrompt?: string) => {
+    if (!selectedPattern) return;
+    
+    const canGenerate = await checkCanGenerate();
+    if (!canGenerate) {
+      setShowUpgradeModal(true);
+      return;
+    }
+    
+    // 🔧 V1 FIX: Clear cached renders BEFORE generating to prevent stale images
+    clearLastRender();
+    
+    setIsGenerating(true);
+    try {
+      const userEmail = await getUserEmail();
+      if (!userEmail) {
+        setShowLoginModal(true);
+        return;
+      }
+      
+      // Resolve hex from InkFusion or pattern - NO FALLBACK
+      const resolvedHex = selectedPattern.inkFusionColor?.hex || selectedPattern.hex;
+      
+      if (!isValidHex(resolvedHex)) {
+        console.error('❌ INVALID COLOR HEX (FadeWraps)', { name: selectedPattern.name, resolvedHex });
+        throw new Error(`Invalid color hex for ${selectedPattern.name}. Rendering blocked.`);
+      }
+      
+      // 🔒 BUILD DETERMINISTIC FADE SPEC (S.A.W. FIX - NO AI GUESSING)
+      const fadeSpec = buildFadeSpec(fadeStyle as FadeStyleKey);
+      const studioLock = buildStudioLock();
+      
+      // 🎯 SANITY LOGGING - Verify params are correct before API call
+      console.log('🎯 FadeWraps Render Config:', {
+        fadeStyle,
+        fadeSpec: {
+          fadeAxis: fadeSpec.fadeAxis,
+          fadeStart: fadeSpec.fadeStart,
+          fadeEnd: fadeSpec.fadeEnd,
+          fadeProfile: fadeSpec.fadeProfile
+        },
+        studioLock: {
+          studioEnvironment: studioLock.studioEnvironment,
+          disableCyclorama: studioLock.disableCyclorama,
+          wallColor: studioLock.wallColor
+        },
+        colorHex: resolvedHex
+      });
+      
+      const { data, error } = await supabase.functions.invoke('generate-color-render', {
+        body: {
+          vehicleYear: year,
+          vehicleMake: make,
+          vehicleModel: model,
+          modeType: 'fadewraps',
+          viewType: 'rear',
+          revisionPrompt,
+          userEmail,
+          tool: 'fadewraps',
+          studio: 'fadewraps_performance',
+          cameraProfile: 'full_vehicle',
+          lighting: 'neutral_studio',
+          // 🔒 LOCKED STUDIO PARAMETERS
+          studioLock,
+          colorData: {
+            colorName: selectedPattern.name,
+            colorHex: resolvedHex,
+            renderHex: selectedPattern.inkFusionColor?.renderHex || null,
+            inkDensity: selectedPattern.inkFusionColor?.inkDensity || 1.0,
+            fadeToHex: '#000000',
+            finish: selectedPattern.inkFusionColor?.lamination?.toLowerCase() || selectedFinish.toLowerCase(),
+            isInkFusion: selectedPattern.isInkFusion || false,
+            fadeStyle,
+            // 🔒 DETERMINISTIC FADE SPEC
+            fadeSpec,
+            addHood,
+            addFrontBumper,
+            addRearBumper,
+            kitSize,
+            roofSize,
+            manufacturer: selectedPattern.isInkFusion ? 'InkFusion' : 'FadeWraps',
+            colorLibrary: 'fadewraps'
+          }
+        }
+      });
+
+      if (error) throw error;
+      
+      if (data?.renderUrl) {
+        const cacheBustedUrl = `${data.renderUrl}${data.renderUrl.includes('?') ? '&' : '?'}cb=${Date.now()}`;
+        
+        // 🔍 AUTO-VALIDATE GRADIENT QUALITY
+        let finalUrl = cacheBustedUrl;
+        let wasRegenerated = false;
+        
+        try {
+          console.log('🔍 Validating FadeWraps gradient quality...');
+          const { data: validationResult, error: validationError } = await supabase.functions.invoke('validate-fade-quality', {
+            body: { renderUrl: data.renderUrl, renderId: data.renderId }
+          });
+          
+          if (!validationError && validationResult) {
+            console.log('📊 Gradient validation result:', validationResult);
+            
+            // Auto-regenerate if score <=3 or hard line detected (increased threshold, up to 2 attempts)
+            const isAutoRegen = revisionPrompt?.includes('[AUTO-REGEN]');
+            const regenCount = isAutoRegen ? parseInt(revisionPrompt.match(/\[AUTO-REGEN-(\d+)\]/)?.[1] || '1') : 0;
+            
+            if ((validationResult.score <= 3 || validationResult.hasHardLine) && regenCount < 2) {
+              console.log(`⚠️ Poor gradient quality detected (score: ${validationResult.score}), auto-regenerating (attempt ${regenCount + 1}/2)...`);
+              toast({ title: "Optimizing gradient...", description: "Auto-improving fade smoothness" });
+              
+              // Call regenerate with a hint to improve gradient
+              const { data: regenData, error: regenError } = await supabase.functions.invoke('generate-color-render', {
+                body: {
+                  vehicleYear: year,
+                  vehicleMake: make,
+                  vehicleModel: model,
+                  modeType: 'fadewraps',
+                  viewType: 'rear',
+                  revisionPrompt: `[AUTO-REGEN-${regenCount + 1}] CRITICAL: Previous render had ${validationResult.hasHardLine ? 'HARD LINE' : `poor gradient (score: ${validationResult.score}/5)`}. Ensure PERFECTLY SMOOTH FLOWING gradient transition with NO visible seam or hard edge. The fade must be IMPERCEPTIBLE like airbrush spray paint - colors MIST into each other. EXTEND the transition zone to at least 50% of vehicle length.`,
+                  userEmail,
+                  tool: 'fadewraps',
+                  studio: 'fadewraps_performance',
+                  cameraProfile: 'full_vehicle',
+                  lighting: 'neutral_studio',
+                  studioLock,
+                  skipCache: true, // Force fresh generation
+                  colorData: {
+                    colorName: selectedPattern.name,
+                    colorHex: resolvedHex,
+                    renderHex: selectedPattern.inkFusionColor?.renderHex || null,
+                    inkDensity: selectedPattern.inkFusionColor?.inkDensity || 1.0,
+                    fadeToHex: '#000000',
+                    finish: selectedPattern.inkFusionColor?.lamination?.toLowerCase() || selectedFinish.toLowerCase(),
+                    isInkFusion: selectedPattern.isInkFusion || false,
+                    fadeStyle,
+                    fadeSpec,
+                    addHood,
+                    addFrontBumper,
+                    addRearBumper,
+                    kitSize,
+                    roofSize,
+                    manufacturer: selectedPattern.isInkFusion ? 'InkFusion' : 'FadeWraps',
+                    colorLibrary: 'fadewraps'
+                  }
+                }
+              });
+              
+              if (!regenError && regenData?.renderUrl) {
+                finalUrl = `${regenData.renderUrl}${regenData.renderUrl.includes('?') ? '&' : '?'}cb=${Date.now()}`;
+                wasRegenerated = true;
+                console.log('✅ Auto-regeneration complete');
+              }
+            }
+          }
+        } catch (validationErr) {
+          console.warn('Gradient validation skipped:', validationErr);
+        }
+        
+        setGeneratedImageUrl(finalUrl);
+        setVisualizationId(wasRegenerated ? null : data.renderId);
+        localStorage.setItem('fadewraps-last-render', finalUrl);
+        await incrementRenderCount();
+        toast({ 
+          title: wasRegenerated ? "Gradient Optimized" : "3D Proof Generated", 
+          description: wasRegenerated ? "Auto-improved fade smoothness" : "Your FadeWraps preview is ready!" 
+        });
+      }
+    } catch (error: any) {
+      console.error('Generation error:', error);
+      if (error.message?.includes('userEmail') || error.message?.includes('anonymous')) {
+        setShowLoginModal(true);
+        return;
+      }
+      toast({ title: "Generation failed", description: error.message || "Please try again", variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const generateAdditionalViews = async (year: string, make: string, model: string) => {
+    if (!selectedPattern) return;
+    
+    setIsGeneratingAdditional(true);
+    try {
+      const userEmail = await getUserEmail();
+      if (!userEmail) {
+        setShowLoginModal(true);
+        return;
+      }
+      
+      // Generate three additional angles: top, front, side.
+      // Combined with the hero rear view this gives a 4-view proof set.
+      const views: Array<'top' | 'front' | 'side'> = ['top', 'front', 'side'];
+      const generatedViews: { type: string; url: string }[] = [];
+
+      for (const viewType of views) {
+        const resolvedHex = selectedPattern.inkFusionColor?.hex || selectedPattern.hex;
+        
+        if (!isValidHex(resolvedHex)) {
+          throw new Error(`Invalid color hex for ${selectedPattern.name}. Rendering blocked.`);
+        }
+        
+        // 🔒 BUILD DETERMINISTIC FADE SPEC FOR ADDITIONAL VIEWS
+        const fadeSpec = buildFadeSpec(fadeStyle as FadeStyleKey);
+        const studioLock = buildStudioLock();
+        
+        const { data, error } = await supabase.functions.invoke('generate-color-render', {
+          body: {
+            vehicleYear: year,
+            vehicleMake: make,
+            vehicleModel: model,
+            modeType: 'fadewraps',
+            viewType,
+            userEmail,
+            tool: 'fadewraps',
+            studio: 'fadewraps_performance',
+            cameraProfile: 'full_vehicle',
+            lighting: 'neutral_studio',
+            // 🔒 LOCKED STUDIO PARAMETERS
+            studioLock,
+            colorData: {
+              colorName: selectedPattern.name,
+              colorHex: resolvedHex,
+              renderHex: selectedPattern.inkFusionColor?.renderHex || null,
+              inkDensity: selectedPattern.inkFusionColor?.inkDensity || 1.0,
+              fadeToHex: '#000000',
+              finish: selectedPattern.inkFusionColor?.lamination?.toLowerCase() || selectedFinish.toLowerCase(),
+              isInkFusion: selectedPattern.isInkFusion || false,
+              fadeStyle,
+              // 🔒 DETERMINISTIC FADE SPEC
+              fadeSpec,
+              addHood,
+              addFrontBumper,
+              addRearBumper,
+              kitSize,
+              roofSize,
+              manufacturer: selectedPattern.isInkFusion ? 'InkFusion' : 'FadeWraps',
+              colorLibrary: 'fadewraps'
+            }
+          }
+        });
+
+        if (error) throw error;
+        if (data?.renderUrl) {
+          const cacheBustedUrl = `${data.renderUrl}${data.renderUrl.includes('?') ? '&' : '?'}cb=${Date.now()}`;
+          generatedViews.push({ type: viewType, url: cacheBustedUrl });
+        }
+      }
+
+      setAdditionalViews(generatedViews);
+      localStorage.setItem('fadewraps-additional-views', JSON.stringify(generatedViews));
+      toast({ title: "Additional views generated", description: "Top, front, and side views are ready!" });
+    } catch (error: any) {
+      console.error('Additional views error:', error);
+      toast({ title: "Generation failed", description: error.message || "Please try again", variant: "destructive" });
+    } finally {
+      setIsGeneratingAdditional(false);
+    }
+  };
+
+  const totalPrice = calculateTotal();
+  const productId = "58391";
+
+  const saveDesignJob = async (vehicleYear: string, vehicleMake: string, vehicleModel: string) => {
+    if (!generatedImageUrl || !selectedPattern) return null;
+
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      
+      const { data, error } = await supabase
+        .from('fadewrap_designs')
+        .insert({
+          user_id: user?.user?.id || null,
+          pattern_id: selectedPattern?.id || null,
+          fade_name: selectedPattern.name,
+          fade_category: selectedPattern.category || 'Gradient',
+          vehicle_year: vehicleYear,
+          vehicle_make: vehicleMake,
+          vehicle_model: vehicleModel,
+          finish: selectedFinish,
+          preview_image_url: generatedImageUrl,
+          gradient_settings: {
+            fadeStyle,
+            addHood,
+            addFrontBumper,
+            addRearBumper,
+            kitSize,
+            roofSize,
+            additionalViews: additionalViews.map(v => ({ type: v.type, url: v.url })),
+            heroUrl: generatedImageUrl
+          }
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Failed to save design job:', error);
+      return null;
+    }
+  };
+
+  return {
+    selectedPattern,
+    setSelectedPattern,
+    selectedFinish,
+    setSelectedFinish,
+    fadeStyle,
+    setFadeStyle,
+    kitSize,
+    setKitSize,
+    addHood,
+    setAddHood,
+    addFrontBumper,
+    setAddFrontBumper,
+    addRearBumper,
+    setAddRearBumper,
+    roofSize,
+    setRoofSize,
+    totalPrice,
+    productId,
+    showFallback,
+    setShowFallback,
+    generateRender,
+    isGenerating,
+    generatedImageUrl,
+    visualizationId,
+    additionalViews,
+    generateAdditionalViews,
+    isGeneratingAdditional,
+    showUpgradeModal,
+    setShowUpgradeModal,
+    showLoginModal,
+    setShowLoginModal,
+    clearLastRender,
+    saveDesignJob,
+  };
+};

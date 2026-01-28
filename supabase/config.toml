@@ -1,0 +1,142 @@
+project_id = "abgevylqeazbydrtovzp"
+
+[functions.analyze-panel-design]
+verify_jwt = false
+
+[functions.backfill-vinyl-references]
+verify_jwt = false
+
+[functions.precompute-canonical-renders]
+verify_jwt = false
+
+[functions.get-vinyl-hex]
+verify_jwt = false
+
+[functions.enrich-vinyl-colors]
+verify_jwt = false
+
+[functions.generate-pattern-thumbnail]
+verify_jwt = false
+
+[functions.generate-gradient-thumbnail]
+verify_jwt = false
+
+[functions.generate-color-render]
+verify_jwt = false
+
+[functions.search-vinyl-product-images]
+verify_jwt = false
+
+[functions.validate-vinyl-color-from-images]
+verify_jwt = false
+
+[functions.sync-wbty-to-woocommerce]
+verify_jwt = false
+
+[functions.analyze-vinyl-swatch]
+verify_jwt = false
+
+[functions.generate-vinyl-swatch]
+verify_jwt = false
+
+[functions.batch-generate-swatches]
+verify_jwt = false
+
+[functions.ai-prompt-auto-fix]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.find-reference-renders]
+verify_jwt = false
+
+[functions.generate-3m-swatches]
+verify_jwt = false
+
+[functions.search-vinyl-color-intelligence]
+verify_jwt = false
+
+[functions.calculate-film-yards]
+verify_jwt = false
+
+[functions.generate-printpro-render]
+verify_jwt = false
+
+[functions.create-design-checkout]
+verify_jwt = false
+
+[functions.send-design-pack-email]
+verify_jwt = false
+
+[functions.verify-and-track-vinyl-color]
+verify_jwt = false
+
+[functions.seed-vinyl-colors]
+verify_jwt = false
+
+[functions.color-extractor]
+verify_jwt = false
+
+[functions.seed-brand-colors]
+verify_jwt = false
+
+[functions.seed-curated-colors]
+verify_jwt = false
+
+[functions.send-templated-email]
+verify_jwt = false
+
+[functions.send-magic-link]
+verify_jwt = false
+
+[functions.update-swatch-media-urls]
+verify_jwt = false
+
+[functions.validate-swatch-images]
+verify_jwt = false
+
+[functions.extract-material-profile]
+verify_jwt = false
+
+[functions.repair-invalid-swatches]
+verify_jwt = false
+
+[functions.ingest-all-wrap-swatch-colors]
+verify_jwt = false
+
+[functions.update-wrap-swatch-colors]
+verify_jwt = false
+
+[functions.generate-approvepro-wrap]
+verify_jwt = false
+
+[functions.generate-approvepro-pdf]
+verify_jwt = false
+
+[functions.cleanup-renders]
+verify_jwt = false
+
+[functions.generate-production-files]
+verify_jwt = false
+
+[functions.validate-color]
+verify_jwt = false
+
+[functions.design-panel-generate]
+verify_jwt = false
+
+[functions.extract-official-swatches]
+verify_jwt = false
+
+[functions.validate-fade-quality]
+verify_jwt = false
+
+[functions.import-official-colors]
+verify_jwt = false
+
+[functions.extract-color-swatches]
+verify_jwt = false
+
+[functions.track-quote-event]
+verify_jwt = false

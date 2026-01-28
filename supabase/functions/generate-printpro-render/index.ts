@@ -1,0 +1,198 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { vehicleYear, vehicleMake, vehicleModel, productData, viewType = 'hood_detail', userEmail } = await req.json();
+    
+    console.log('PrintPro render request:', { vehicleYear, vehicleMake, vehicleModel, viewType, productData, userEmail });
+
+    if (!vehicleYear || !vehicleMake || !vehicleModel) {
+      return new Response(
+        JSON.stringify({ error: 'Missing vehicle details' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY not configured');
+    }
+
+    // Extract product data
+    const { 
+      swatchColor, 
+      swatchName, 
+      finish = 'gloss',
+      designUrl,
+      designName = 'Custom Design'
+    } = productData || {};
+
+    // Build PrintPro-specific prompt
+    const printProPrompt = buildPrintProPrompt({
+      vehicleYear,
+      vehicleMake,
+      vehicleModel,
+      swatchColor,
+      swatchName,
+      finish,
+      designUrl,
+      designName,
+      viewType
+    });
+
+    console.log('Invoking AI with PrintPro prompt...');
+
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-pro',
+        messages: [{ role: 'user', content: printProPrompt }],
+        modalities: ['image', 'text']
+      })
+    });
+
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error('AI API error:', errorText);
+      throw new Error(`AI API error: ${aiResponse.status}`);
+    }
+
+    const aiData = await aiResponse.json();
+    const imageUrl = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+
+    if (!imageUrl) {
+      throw new Error('No image generated');
+    }
+
+    console.log('PrintPro render generated successfully');
+
+    return new Response(
+      JSON.stringify({ 
+        renderUrl: imageUrl,
+        viewType 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('PrintPro render error:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    );
+  }
+});
+
+function buildPrintProPrompt({ 
+  vehicleYear, 
+  vehicleMake, 
+  vehicleModel, 
+  swatchColor, 
+  swatchName, 
+  finish, 
+  designUrl, 
+  designName,
+  viewType 
+}: {
+  vehicleYear: string;
+  vehicleMake: string;
+  vehicleModel: string;
+  swatchColor?: string;
+  swatchName?: string;
+  finish: string;
+  designUrl?: string;
+  designName: string;
+  viewType: string;
+}): string {
+  
+  // Camera positioning (duplicated from DesignPanelPro parameters)
+  const cameraAngle = viewType === 'hood_detail'
+    ? 'HOOD DETAIL VIEW - Tight 3/4 front angle, hood fills 60-70% of frame, vehicle logo/badge clearly visible and in focus'
+    : viewType === 'front'
+    ? 'HERO FRONT 3/4 VIEW - Dynamic front-left angle showing full vehicle front with hood, grille, headlights'
+    : viewType === 'side'
+    ? 'TRUE SIDE PROFILE - Perfect 90 degree side view, camera 8 feet from vehicle at centerline height, showing full vehicle length from ground to roof'
+    : viewType === 'rear'
+    ? 'REAR 3/4 VIEW - Rear-left corner angle showing full rear end, bumper, trunk, quarter panels'
+    : 'TOP VIEW - Overhead drone perspective looking straight down at vehicle roof and hood';
+
+  // Finish characteristics
+  const finishDetails = finish.toLowerCase() === 'gloss'
+    ? 'ULTRA HIGH GLOSS finish with mirror-like reflections, deep wet shine, sharp crisp reflections of sky and surroundings'
+    : finish.toLowerCase() === 'satin'
+    ? 'SATIN finish with soft pearl sheen, subtle reflections, smooth silky appearance'
+    : 'DEEP MATTE finish with zero reflections, flat uniform surface, no shine or gloss';
+
+  return `You are a professional automotive wrap visualization AI generating photorealistic renders of printed vinyl film products installed on vehicles.
+
+🚗 VEHICLE SPECIFICATIONS
+${vehicleYear} ${vehicleMake} ${vehicleModel}
+
+🎨 PRINTED PRODUCT SPECIFICATIONS
+Product Type: InkFusion™ Premium Printed Film
+${swatchColor ? `Base Color: ${swatchColor}` : ''}
+${swatchName ? `Swatch Name: ${swatchName}` : ''}
+${designUrl ? `Design Pattern: ${designName}` : 'Solid Color Film'}
+Finish: ${finish.toUpperCase()} (${finishDetails})
+
+📷 CAMERA POSITION & COMPOSITION
+${cameraAngle}
+
+🎯 CRITICAL RENDERING REQUIREMENTS
+
+1. ASPECT RATIO (MANDATORY)
+   - Generate image in STRICT 16:9 landscape aspect ratio
+   - Resolution: 1920×1080px or 1792×1008px
+   - NEVER generate square or portrait format
+
+2. PRINTED FILM APPLICATION
+   ${designUrl 
+     ? `- Show custom printed design pattern seamlessly installed on vehicle panels
+   - Pattern must wrap naturally around vehicle curves and body lines
+   - NO visible seams, edges, or application marks
+   - Design should appear professionally printed and installed`
+     : `- Show solid color vinyl film (${swatchColor || 'selected color'}) professionally installed
+   - Seamless coverage across all visible panels
+   - No seams, edges, or application marks visible`}
+
+3. FINISH ACCURACY
+   ${finishDetails}
+   - Finish must be consistent across all panels
+   - Lighting must accurately represent ${finish} characteristics
+
+4. PHOTOREALISM
+   - ULTRA HIGH RESOLUTION, crystal clear, zero blur
+   - Professional DSLR quality photography
+   - Accurate vehicle proportions and panel alignment
+   - Natural outdoor lighting (golden hour preferred)
+   - Realistic shadows and ground reflections
+
+5. BRANDING OVERLAY (REQUIRED)
+   - Top-left corner: "PrintPro™" text only
+   - Font: Inter, 10px size, pure black (#000000)
+   - Position: 12px from top edge, 15px from left edge
+   - NO italic, NO bold, NO effects, NO shadows
+   - Text should appear nearly invisible like a watermark
+   - Single instance only (no duplicate overlays)
+
+6. BACKGROUND & SETTING
+   - Modern urban setting or professional studio environment
+   - Clean, professional composition
+   - Subtle background that doesn't distract from vehicle
+   - Natural depth of field with vehicle in sharp focus
+
+Generate a photorealistic render showing the ${vehicleYear} ${vehicleMake} ${vehicleModel} wrapped in InkFusion™ printed film. The render must look like a professional installation photo that could be used in marketing materials or client presentations.`;
+}
