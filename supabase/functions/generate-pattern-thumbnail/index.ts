@@ -43,7 +43,7 @@ serve(async (req) => {
       prompt = `Generate a seamless pattern tile for a vehicle wrap design called "${patternName}". Create a 512x512 square tile that looks like a professional vinyl wrap pattern sample. Make it tileable and suitable for automotive applications.`;
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_AI_API_KEY}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -107,7 +107,7 @@ Format your response as structured JSON:
 
     console.log("🤖 Calling AI for prompt analysis...");
 
-    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${googleApiKey}`, {
+    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${googleApiKey}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

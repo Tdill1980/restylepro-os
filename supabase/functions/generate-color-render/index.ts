@@ -2896,7 +2896,7 @@ The wrapped vehicle photos ARE your ground truth for material behavior.
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`;
+        const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_AI_API_KEY}`;
 
         const aiResponse = await fetch(geminiEndpoint, {
           method: "POST",

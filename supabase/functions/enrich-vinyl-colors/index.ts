@@ -47,7 +47,7 @@ serve(async (req) => {
         const systemPrompt = `You are a vinyl wrap film color database expert. Return the EXACT official hex color code for vinyl wrap films. Only return colors from ACTUAL manufacturer color charts. If uncertain, return "NOT_FOUND". Respond ONLY with a hex code like #RRGGBB or "NOT_FOUND".`;
         const userPrompt = `Manufacturer: ${color.manufacturer}\nFilm Color Name: ${color.name}\n\nReturn ONLY the hex code or "NOT_FOUND".`;
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_AI_API_KEY}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

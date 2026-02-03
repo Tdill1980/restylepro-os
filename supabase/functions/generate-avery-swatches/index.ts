@@ -51,7 +51,7 @@ Finish characteristics:
 
 Create a rectangular swatch (800x600px) showing the ${color.official_hex} color in ${color.finish} finish with a diagonal light reflection streak from top-right to bottom-left, matching professional Avery Dennison vinyl swatch photography style.`;
 
-        const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
+        const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_AI_API_KEY}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
