@@ -621,13 +621,43 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      console.error('LOVABLE_API_KEY not configured');
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
+    if (!GOOGLE_AI_API_KEY) {
+      console.error('GOOGLE_AI_API_KEY not configured');
       return new Response(
         JSON.stringify({ error: 'AI service not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Helper function to convert image URL to base64 for Gemini API
+    async function imageUrlToBase64(url: string): Promise<{ mimeType: string; data: string } | null> {
+      try {
+        // If already a data URL, extract the base64 part
+        if (url.startsWith('data:')) {
+          const matches = url.match(/^data:([^;]+);base64,(.+)$/);
+          if (matches) {
+            return { mimeType: matches[1], data: matches[2] };
+          }
+          return null;
+        }
+
+        // Fetch the image and convert to base64
+        const response = await fetch(url);
+        if (!response.ok) {
+          console.warn(`Failed to fetch image: ${url}`);
+          return null;
+        }
+
+        const contentType = response.headers.get('content-type') || 'image/png';
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+
+        return { mimeType: contentType, data: base64 };
+      } catch (error) {
+        console.warn(`Error converting image to base64: ${url}`, error);
+        return null;
+      }
     }
 
     // ============= RENDER CACHING LOGIC =============
@@ -2795,141 +2825,182 @@ The wrapped vehicle photos ARE your ground truth for material behavior.
       });
     }
 
-    console.log('Calling Lovable AI Gateway');
-    
+    console.log('Calling Google Gemini API');
+
     // Retry logic for transient errors (timeouts, 503s)
-    console.log('Calling Lovable AI Gateway');
-    let aiData;
+    let aiData: { imageUrl?: string; error?: { message?: string; code?: number } } = {};
     let lastError;
     const maxRetries = 3;
-    
+
+    // Build Gemini request parts - collect all image URLs to convert
+    const imagesToConvert: { url: string; label: string }[] = [];
+
+    // FadeWraps: ALWAYS include the gold-standard visual reference image (if resolvable)
+    if (modeType === 'fadewraps' && standardFadeReferenceUrl) {
+      console.log('📸 Adding FadeWraps gold-standard gradient reference image');
+      imagesToConvert.push({ url: standardFadeReferenceUrl, label: 'fade-reference' });
+    }
+
+    // For ColorProEnhanced/GraphicsPro - add reference image if provided
+    if ((modeType === 'ColorProEnhanced' || modeType === 'GraphicsPro') && referenceImageBase64) {
+      console.log(`📸 Adding ${modeType} reference image for style inspiration`);
+      imagesToConvert.push({ url: referenceImageBase64, label: 'style-reference' });
+    }
+
+    // For DesignPanelPro, WBTY, ApproveMode, and FadeWraps - panel/pattern image is PRIMARY
+    if (patternImageUrl && (modeType === 'designpanelpro' || modeType === 'wbty' || modeType === 'approvemode' || modeType === 'fadewraps')) {
+      console.log(`📸 Adding pattern/design image as PRIMARY reference for ${modeType}`);
+      imagesToConvert.push({ url: patternImageUrl, label: 'pattern-primary' });
+    }
+
+    // Add web search photos (for ColorPro color reference)
+    if (webSearchPhotos && webSearchPhotos.length > 0) {
+      const validPhotos = webSearchPhotos.filter(photo => isValidImageUrl(photo.url));
+      console.log(`📸 Adding ${validPhotos.length}/${webSearchPhotos.length} validated reference photos to AI prompt`);
+      for (const photo of validPhotos) {
+        imagesToConvert.push({ url: photo.url, label: 'web-reference' });
+      }
+    }
+
+    // Add database reference images (if found and no web photos)
+    if ((!webSearchPhotos || webSearchPhotos.length === 0) && referenceImages && referenceImages.length > 0) {
+      console.log(`📸 Adding ${referenceImages.length} database reference images to AI prompt`);
+      for (const refImg of referenceImages) {
+        imagesToConvert.push({ url: refImg, label: 'db-reference' });
+      }
+    }
+
+    // For ColorPro/InkFusion - pattern/swatch image comes after references
+    if (patternImageUrl && modeType !== 'designpanelpro' && modeType !== 'wbty' && modeType !== 'approvemode' && modeType !== 'fadewraps') {
+      imagesToConvert.push({ url: patternImageUrl, label: 'swatch' });
+    }
+
+    // Convert all images to base64 for Gemini API
+    console.log(`Converting ${imagesToConvert.length} images to base64 for Gemini...`);
+    const geminiParts: any[] = [{ text: aiPrompt }];
+
+    for (const img of imagesToConvert) {
+      const base64Data = await imageUrlToBase64(img.url);
+      if (base64Data) {
+        geminiParts.push({
+          inlineData: {
+            mimeType: base64Data.mimeType,
+            data: base64Data.data
+          }
+        });
+        console.log(`✅ Converted ${img.label} image to base64`);
+      } else {
+        console.warn(`⚠️ Failed to convert ${img.label} image, skipping`);
+      }
+    }
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`;
+
+        const aiResponse = await fetch(geminiEndpoint, {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash-image-preview",
-            messages: [{
-              role: "user",
-            content: (() => {
-                const contentParts: any[] = [{ type: "text", text: aiPrompt }];
-                
-                // FadeWraps: ALWAYS include the gold-standard visual reference image (if resolvable)
-                if (modeType === 'fadewraps' && standardFadeReferenceUrl) {
-                  console.log('📸 Adding FadeWraps gold-standard gradient reference image');
-                  contentParts.push({ type: "image_url", image_url: { url: standardFadeReferenceUrl } });
-                }
-
-                // For ColorProEnhanced/GraphicsPro - add reference image if provided
-                if ((modeType === 'ColorProEnhanced' || modeType === 'GraphicsPro') && referenceImageBase64) {
-                  console.log(`📸 Adding ${modeType} reference image for style inspiration`);
-                  contentParts.push({ type: "image_url", image_url: { url: referenceImageBase64 } });
-                }
-                
-                // For DesignPanelPro, WBTY, ApproveMode, and FadeWraps - panel/pattern image is PRIMARY
-                // Add it FIRST so the AI prioritizes it as the design to apply
-                if (patternImageUrl && (modeType === 'designpanelpro' || modeType === 'wbty' || modeType === 'approvemode' || modeType === 'fadewraps')) {
-                  console.log(`📸 Adding pattern/design image as PRIMARY reference for ${modeType}`);
-                  contentParts.push({ type: "image_url", image_url: { url: patternImageUrl } });
-                }
-                
-                // Add web search photos (for ColorPro color reference) - VALIDATE URLS BEFORE SENDING TO AI
-                if (webSearchPhotos && webSearchPhotos.length > 0) {
-                  // CRITICAL: Filter to only valid image URLs before sending to AI
-                  const validPhotos = webSearchPhotos.filter(photo => isValidImageUrl(photo.url));
-                  console.log(`📸 Adding ${validPhotos.length}/${webSearchPhotos.length} validated reference photos to AI prompt`);
-                  for (const photo of validPhotos) {
-                    contentParts.push({ type: "image_url", image_url: { url: photo.url } });
-                  }
-                }
-                
-                // Add database reference images (if found and no web photos)
-                if ((!webSearchPhotos || webSearchPhotos.length === 0) && referenceImages && referenceImages.length > 0) {
-                  console.log(`📸 Adding ${referenceImages.length} database reference images to AI prompt`);
-                  for (const refImg of referenceImages) {
-                    contentParts.push({ type: "image_url", image_url: { url: refImg } });
-                  }
-                }
-                
-                // For ColorPro/InkFusion - pattern/swatch image comes after references
-                if (patternImageUrl && modeType !== 'designpanelpro' && modeType !== 'wbty' && modeType !== 'approvemode' && modeType !== 'fadewraps') {
-                  contentParts.push({ type: "image_url", image_url: { url: patternImageUrl } });
-                }
-                
-                return contentParts;
-              })()
+            contents: [{
+              parts: geminiParts
             }],
-            modalities: ["image", "text"]
+            generationConfig: {
+              responseModalities: ["TEXT", "IMAGE"],
+              responseMimeType: "text/plain"
+            }
           })
         });
 
         if (!aiResponse.ok) {
           const errorText = await aiResponse.text();
-          console.error(`Lovable AI Gateway HTTP error (attempt ${attempt}/${maxRetries}):`, errorText);
-          
+          console.error(`Google Gemini API HTTP error (attempt ${attempt}/${maxRetries}):`, errorText);
+
           if (aiResponse.status === 429) {
             return new Response(
               JSON.stringify({ error: 'Rate limit reached. Please try again in a moment.' }),
               { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
-          
-          if (aiResponse.status === 402) {
+
+          if (aiResponse.status === 403) {
             return new Response(
-              JSON.stringify({ error: 'AI credits exhausted. Please upgrade your plan.' }),
-              { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              JSON.stringify({ error: 'API key invalid or quota exceeded.' }),
+              { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
-          
-          throw new Error(`Lovable AI Gateway failed: ${aiResponse.status}`);
+
+          throw new Error(`Google Gemini API failed: ${aiResponse.status}`);
         }
 
-        aiData = await aiResponse.json();
+        const geminiData = await aiResponse.json();
         console.log(`AI response received (attempt ${attempt}/${maxRetries})`);
 
-        // Check if response contains a provider error
-        if (aiData.error) {
-          const errorMsg = aiData.error.message || 'Unknown error';
-          const errorCode = aiData.error.code;
-          const providerName = aiData.error.metadata?.provider_name || 'AI provider';
-          
-          console.error(`Provider error (attempt ${attempt}/${maxRetries}):`, {
+        // Check if response contains an error
+        if (geminiData.error) {
+          const errorMsg = geminiData.error.message || 'Unknown error';
+          const errorCode = geminiData.error.code;
+
+          console.error(`Gemini error (attempt ${attempt}/${maxRetries}):`, {
             code: errorCode,
-            message: errorMsg,
-            provider: providerName
+            message: errorMsg
           });
-          
-          // Don't retry for regional restrictions
-          if (errorCode === 400 && errorMsg.includes('blocked')) {
-            throw new Error(`Image generation not available in your region. Please try a different tool.`);
+
+          // Don't retry for regional restrictions or safety blocks
+          if (errorCode === 400 && (errorMsg.includes('blocked') || errorMsg.includes('SAFETY'))) {
+            throw new Error(`Image generation blocked. Please try a different prompt or tool.`);
           }
-          
+
           // Retry for transient errors (503, timeout, unavailable)
-          if (errorCode === 503 || errorMsg.includes('Deadline') || errorMsg.includes('UNAVAILABLE')) {
+          if (errorCode === 503 || errorMsg.includes('Deadline') || errorMsg.includes('UNAVAILABLE') || errorMsg.includes('overloaded')) {
             if (attempt < maxRetries) {
               const waitTime = Math.pow(2, attempt) * 1000;
-              console.log(`Retrying after ${waitTime}ms due to timeout...`);
+              console.log(`Retrying after ${waitTime}ms due to transient error...`);
               await new Promise(resolve => setTimeout(resolve, waitTime));
               continue;
             }
           }
-          
-          throw new Error(`${providerName} error: ${errorMsg}`);
+
+          throw new Error(`Gemini API error: ${errorMsg}`);
         }
 
-        // Check for image URL in successful response
-        const imageUrl = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-        if (!imageUrl) {
-          console.error('No image URL in response');
-          throw new Error('No image URL in AI response');
+        // Extract image from Gemini response format
+        // Gemini returns: { candidates: [{ content: { parts: [{ inlineData: { mimeType, data } }] } }] }
+        const candidates = geminiData.candidates;
+        if (!candidates || candidates.length === 0) {
+          console.error('No candidates in Gemini response');
+          throw new Error('No response from Gemini API');
         }
 
-        // Convert to expected format
+        const parts = candidates[0]?.content?.parts;
+        if (!parts || parts.length === 0) {
+          console.error('No parts in Gemini response');
+          throw new Error('No content in Gemini response');
+        }
+
+        // Find the image part in the response
+        let imageBase64: string | null = null;
+        let imageMimeType = 'image/png';
+
+        for (const part of parts) {
+          if (part.inlineData) {
+            imageBase64 = part.inlineData.data;
+            imageMimeType = part.inlineData.mimeType || 'image/png';
+            break;
+          }
+        }
+
+        if (!imageBase64) {
+          console.error('No image data in Gemini response');
+          throw new Error('No image generated by Gemini');
+        }
+
+        // Convert to data URL format for consistency with existing code
+        const imageUrl = `data:${imageMimeType};base64,${imageBase64}`;
         aiData.imageUrl = imageUrl;
+        console.log('✅ Successfully extracted image from Gemini response');
 
         // Success - break out of retry loop
         break;
