@@ -23,14 +23,31 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
+    if (!GOOGLE_AI_API_KEY) {
+      throw new Error('GOOGLE_AI_API_KEY is not configured');
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Helper to convert image URL to base64
+    async function imageUrlToBase64(url: string): Promise<{ mimeType: string; data: string } | null> {
+      try {
+        if (url.startsWith('data:')) {
+          const matches = url.match(/^data:([^;]+);base64,(.+)$/);
+          if (matches) return { mimeType: matches[1], data: matches[2] };
+          return null;
+        }
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        const contentType = response.headers.get('content-type') || 'image/png';
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        return { mimeType: contentType, data: base64 };
+      } catch { return null; }
+    }
 
     // Fetch existing colors for this manufacturer to get product codes
     const { data: existingColors, error: fetchError } = await supabase
@@ -80,35 +97,38 @@ IMPORTANT:
 - For metallic/pearl colors, use the base dominant color
 - If a color cannot be found, omit it from the array`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Convert poster image to base64
+    const posterImageData = await imageUrlToBase64(posterUrl);
+    if (!posterImageData) {
+      throw new Error('Failed to fetch poster image');
+    }
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: posterUrl } }
-            ]
-          }
-        ],
-        max_tokens: 8000
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: posterImageData.mimeType, data: posterImageData.data } }
+          ]
+        }],
+        generationConfig: {
+          maxOutputTokens: 8000
+        }
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI API error:', response.status, errorText);
-      throw new Error(`AI API error: ${response.status}`);
+      console.error('Gemini API error:', response.status, errorText);
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
     const aiResult = await response.json();
-    const content = aiResult.choices?.[0]?.message?.content || '';
+    const content = aiResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
     console.log('AI response:', content.substring(0, 500));
 

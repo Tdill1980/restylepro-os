@@ -14,7 +14,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+    const GOOGLE_AI_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY")!;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -44,37 +44,33 @@ serve(async (req) => {
       try {
         console.log(`Processing: ${color.manufacturer} - ${color.name}`);
 
-        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const systemPrompt = `You are a vinyl wrap film color database expert. Return the EXACT official hex color code for vinyl wrap films. Only return colors from ACTUAL manufacturer color charts. If uncertain, return "NOT_FOUND". Respond ONLY with a hex code like #RRGGBB or "NOT_FOUND".`;
+        const userPrompt = `Manufacturer: ${color.manufacturer}\nFilm Color Name: ${color.name}\n\nReturn ONLY the hex code or "NOT_FOUND".`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            messages: [
-              {
-                role: "system",
-                content: `You are a vinyl wrap film color database expert. Return the EXACT official hex color code for vinyl wrap films. Only return colors from ACTUAL manufacturer color charts. If uncertain, return "NOT_FOUND". Respond ONLY with a hex code like #RRGGBB or "NOT_FOUND".`
-              },
-              {
-                role: "user",
-                content: `Manufacturer: ${color.manufacturer}\nFilm Color Name: ${color.name}\n\nReturn ONLY the hex code or "NOT_FOUND".`
-              }
-            ],
-            temperature: 0.1,
-            max_tokens: 20
+            contents: [{
+              parts: [{ text: systemPrompt + "\n\n" + userPrompt }]
+            }],
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 20
+            }
           }),
         });
 
         if (!response.ok) {
-          console.error(`AI error for ${color.name}`);
+          console.error(`Gemini API error for ${color.name}`);
           results.errors++;
           continue;
         }
 
         const data = await response.json();
-        const content = data.choices?.[0]?.message?.content?.trim() || "";
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
         const hexMatch = content.match(/^#[0-9A-Fa-f]{6}$/);
 
         if (hexMatch) {

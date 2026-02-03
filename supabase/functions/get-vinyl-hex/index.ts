@@ -21,59 +21,56 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const GOOGLE_AI_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
+    if (!GOOGLE_AI_API_KEY) {
+      throw new Error("GOOGLE_AI_API_KEY is not configured");
     }
 
     console.log(`Fetching hex for: ${manufacturer} - ${colorName}`);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `You are a vinyl wrap film color database expert. Your job is to return the EXACT official hex color code that represents a specific vinyl wrap film color from a manufacturer's color chart.
+    const systemPrompt = `You are a vinyl wrap film color database expert. Your job is to return the EXACT official hex color code that represents a specific vinyl wrap film color from a manufacturer's color chart.
 
 RULES:
 - Only return colors from ACTUAL manufacturer color charts (3M, Avery Dennison, Hexis, KPMF, Oracal, Arlon, VViViD, TeckWrap, Inozetek, etc.)
 - DO NOT GUESS or approximate colors
 - If you are not 100% certain of the exact hex code, return "NOT_FOUND"
 - Respond ONLY with a hex code like #RRGGBB - no extra text, no explanation
-- Consider the full color name including any finish descriptors (Gloss, Matte, Satin, Metallic, etc.)`
-          },
-          {
-            role: "user",
-            content: `What is the exact hex color code for this vinyl wrap film?
+- Consider the full color name including any finish descriptors (Gloss, Matte, Satin, Metallic, etc.)`;
+
+    const userPrompt = `What is the exact hex color code for this vinyl wrap film?
 
 Manufacturer: ${manufacturer}
 Film Color Name: ${colorName}
 
-Return ONLY the hex code (e.g., #1A2B3C) or "NOT_FOUND" if you cannot determine the exact color.`
-          }
-        ],
-        temperature: 0.1,
-        max_tokens: 20
+Return ONLY the hex code (e.g., #1A2B3C) or "NOT_FOUND" if you cannot determine the exact color.`;
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: systemPrompt + "\n\n" + userPrompt }]
+        }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 20
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("Gemini API error:", response.status, errorText);
       return new Response(
-        JSON.stringify({ hex: "NOT_FOUND", error: "AI gateway error" }),
+        JSON.stringify({ hex: "NOT_FOUND", error: "Gemini API error" }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content?.trim() || "";
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
     
     console.log(`AI returned: ${content} for ${manufacturer} - ${colorName}`);
 

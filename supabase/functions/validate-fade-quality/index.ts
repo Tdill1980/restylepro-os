@@ -32,13 +32,30 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      console.error('❌ LOVABLE_API_KEY not configured');
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
+    if (!GOOGLE_AI_API_KEY) {
+      console.error('❌ GOOGLE_AI_API_KEY not configured');
       return new Response(
         JSON.stringify({ error: 'AI service not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Helper to convert image URL to base64
+    async function imageUrlToBase64(url: string): Promise<{ mimeType: string; data: string } | null> {
+      try {
+        if (url.startsWith('data:')) {
+          const matches = url.match(/^data:([^;]+);base64,(.+)$/);
+          if (matches) return { mimeType: matches[1], data: matches[2] };
+          return null;
+        }
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        const contentType = response.headers.get('content-type') || 'image/png';
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        return { mimeType: contentType, data: base64 };
+      } catch { return null; }
     }
 
     // Build the analysis prompt
@@ -83,39 +100,45 @@ Respond ONLY with valid JSON in this exact format:
 
     console.log('📸 Analyzing render:', renderUrl.substring(0, 80) + '...');
 
-    // Call Lovable AI to analyze the image
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Convert image to base64 for Gemini
+    const imageData = await imageUrlToBase64(renderUrl);
+    if (!imageData) {
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch render image' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Call Gemini API to analyze the image
+    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: analysisPrompt },
-              { type: 'image_url', image_url: { url: renderUrl } }
-            ]
-          }
-        ],
-        max_tokens: 1000,
+        contents: [{
+          parts: [
+            { text: analysisPrompt },
+            { inlineData: { mimeType: imageData.mimeType, data: imageData.data } }
+          ]
+        }],
+        generationConfig: {
+          maxOutputTokens: 1000
+        }
       })
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error('❌ AI analysis failed:', aiResponse.status, errorText);
-      
+      console.error('❌ Gemini API analysis failed:', aiResponse.status, errorText);
+
       if (aiResponse.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Rate limit exceeded, please try again later' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      
+
       return new Response(
         JSON.stringify({ error: 'AI analysis failed' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -123,7 +146,7 @@ Respond ONLY with valid JSON in this exact format:
     }
 
     const aiData = await aiResponse.json();
-    const analysisText = aiData.choices?.[0]?.message?.content || '';
+    const analysisText = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
     console.log('📝 AI Analysis response:', analysisText);
 

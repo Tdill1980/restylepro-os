@@ -23,12 +23,29 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const GOOGLE_AI_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
+    if (!GOOGLE_AI_API_KEY) {
       return new Response(
         JSON.stringify({ code: "SYSTEM_ERROR", message: "API key not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Helper to convert image URL to base64
+    async function imageUrlToBase64(url: string): Promise<{ mimeType: string; data: string } | null> {
+      try {
+        if (url.startsWith('data:')) {
+          const matches = url.match(/^data:([^;]+);base64,(.+)$/);
+          if (matches) return { mimeType: matches[1], data: matches[2] };
+          return null;
+        }
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        const contentType = response.headers.get('content-type') || 'image/png';
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        return { mimeType: contentType, data: base64 };
+      } catch { return null; }
     }
 
     // Build the prompt
@@ -36,24 +53,32 @@ serve(async (req) => {
 
     console.log("DesignPanelPro generation starting:", { vehicle, panelName, viewType });
 
-    // Call AI gateway
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Convert panel image to base64
+    const panelImageData = await imageUrlToBase64(panelUrl);
+    if (!panelImageData) {
+      return new Response(
+        JSON.stringify({ code: "SYSTEM_ERROR", message: "Failed to fetch panel image" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Call Gemini API
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: panelUrl } }
-            ]
-          }
-        ],
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: panelImageData.mimeType, data: panelImageData.data } }
+          ]
+        }],
+        generationConfig: {
+          responseModalities: ["TEXT", "IMAGE"],
+          responseMimeType: "text/plain"
+        }
       }),
     });
 
@@ -64,14 +89,14 @@ serve(async (req) => {
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
+      if (response.status === 403) {
         return new Response(
-          JSON.stringify({ error: "Credits exhausted. Please add funds." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ error: "API key invalid or quota exceeded." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("Gemini API error:", response.status, errorText);
       return new Response(
         JSON.stringify({ code: "SYSTEM_ERROR", message: "Image generation failed" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -79,29 +104,23 @@ serve(async (req) => {
     }
 
     const result = await response.json();
-    
-    // Extract image from response
-    const message = result.choices?.[0]?.message;
+
+    // Extract image from Gemini response
+    const parts = result.candidates?.[0]?.content?.parts;
     let imageUrl = null;
 
-    // Check images array first (Google Gemini format)
-    if (message?.images && Array.isArray(message.images)) {
-      const imageContent = message.images.find((img: any) => img.type === "image_url");
-      if (imageContent?.image_url?.url) {
-        imageUrl = imageContent.image_url.url;
-      }
-    }
-
-    // Fallback: check content array (OpenAI format)
-    if (!imageUrl && Array.isArray(message?.content)) {
-      const imageContent = message.content.find((c: any) => c.type === "image_url");
-      if (imageContent?.image_url?.url) {
-        imageUrl = imageContent.image_url.url;
+    if (parts && Array.isArray(parts)) {
+      for (const part of parts) {
+        if (part.inlineData) {
+          const mimeType = part.inlineData.mimeType || 'image/png';
+          imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+          break;
+        }
       }
     }
 
     if (!imageUrl) {
-      console.error("No image in AI response:", JSON.stringify(result).slice(0, 500));
+      console.error("No image in Gemini response:", JSON.stringify(result).slice(0, 500));
       return new Response(
         JSON.stringify({ code: "SYSTEM_ERROR", message: "No image returned from AI" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

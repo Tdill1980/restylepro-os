@@ -244,8 +244,8 @@ serve(async (req) => {
     
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
-    
+    const GOOGLE_AI_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY")!;
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const allColors = manufacturer === "3M" ? OFFICIAL_3M_COLORS : OFFICIAL_AVERY_COLORS;
@@ -275,16 +275,17 @@ Show realistic vinyl wrap texture with appropriate:
 The swatch should look like an official manufacturer color chip.
 NO text, labels, or watermarks. Just the pure color swatch.`;
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${lovableApiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image-preview",
-          messages: [{ role: "user", content: prompt }],
-          modalities: ["image", "text"],
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseModalities: ["TEXT", "IMAGE"],
+            responseMimeType: "text/plain"
+          }
         }),
       });
 
@@ -295,8 +296,18 @@ NO text, labels, or watermarks. Just the pure color swatch.`;
       }
 
       const data = await response.json();
-      const imageBase64 = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-      
+      const parts = data.candidates?.[0]?.content?.parts;
+      let imageBase64: string | null = null;
+      if (parts) {
+        for (const part of parts) {
+          if (part.inlineData) {
+            const mimeType = part.inlineData.mimeType || 'image/png';
+            imageBase64 = `data:${mimeType};base64,${part.inlineData.data}`;
+            break;
+          }
+        }
+      }
+
       if (!imageBase64) {
         console.error(`No image returned for ${color.code}`);
         results.push({ code: color.code, success: false, error: "No image in response" });

@@ -22,9 +22,9 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
+    if (!GOOGLE_AI_API_KEY) {
+      throw new Error('GOOGLE_AI_API_KEY not configured');
     }
 
     // Fetch the actual hex color from the database for accurate color matching
@@ -106,42 +106,50 @@ The swatch must look like an actual physical vinyl wrap sample with professional
 
     console.log('Generating with prompt:', prompt);
 
-    // Generate image using Lovable AI (Gemini 2.5 Flash Image)
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Generate image using Google Gemini API
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image-preview',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        modalities: ['image', 'text']
+        contents: [{
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          responseMimeType: 'text/plain'
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Lovable AI error:', errorText);
-      throw new Error(`Lovable AI error: ${response.status} - ${errorText}`);
+      console.error('Gemini API error:', errorText);
+      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('Lovable AI response received');
-    
+    console.log('Gemini API response received');
+
     // Extract base64 image from Gemini response
-    if (!data.choices?.[0]?.message?.images?.[0]?.image_url?.url) {
-      throw new Error('No image data in response');
+    const parts = data.candidates?.[0]?.content?.parts;
+    if (!parts || parts.length === 0) {
+      throw new Error('No content in Gemini response');
     }
 
-    const base64DataUrl = data.choices[0].message.images[0].image_url.url;
-    // Extract base64 data from data URL (format: data:image/png;base64,...)
-    const base64Image = base64DataUrl.split(',')[1];
+    // Find the image part
+    let base64Image: string | null = null;
+    for (const part of parts) {
+      if (part.inlineData) {
+        base64Image = part.inlineData.data;
+        break;
+      }
+    }
+
+    if (!base64Image) {
+      throw new Error('No image data in response');
+    }
     
     // Upload to Supabase Storage
     // supabase client already initialized above

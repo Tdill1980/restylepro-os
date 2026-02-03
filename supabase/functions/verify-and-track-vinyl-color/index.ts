@@ -115,9 +115,9 @@ serve(async (req) => {
     // STEP 2: Not in database - verify with AI
     console.log(`🤖 Color not in database, verifying with AI: ${manufacturer} - ${colorName}`);
     
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
+    if (!GOOGLE_AI_API_KEY) {
+      throw new Error('GOOGLE_AI_API_KEY not configured');
     }
 
     const verificationPrompt = `You are a vinyl wrap color verification expert. Verify if this vinyl wrap color exists in real manufacturer catalogs.
@@ -148,28 +148,25 @@ RESPOND WITH ONLY VALID JSON (no markdown, no explanation):
   "reasoning": "brief explanation"
 }`;
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: 'You are a vinyl wrap color expert. Respond only with valid JSON.' },
-          { role: 'user', content: verificationPrompt }
-        ]
+        contents: [{
+          parts: [{ text: 'You are a vinyl wrap color expert. Respond only with valid JSON.\n\n' + verificationPrompt }]
+        }]
       })
     });
 
     if (!aiResponse.ok) {
-      console.error('AI verification failed:', await aiResponse.text());
+      console.error('Gemini API verification failed:', await aiResponse.text());
       throw new Error('AI verification service unavailable');
     }
 
     const aiData = await aiResponse.json();
-    const aiContent = aiData.choices?.[0]?.message?.content || '';
+    const aiContent = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
     console.log('AI response:', aiContent);
 

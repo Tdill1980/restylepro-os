@@ -17,9 +17,9 @@ serve(async (req) => {
       throw new Error('Missing required vehicle information');
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
+    if (!GOOGLE_AI_API_KEY) {
+      throw new Error('GOOGLE_AI_API_KEY not configured');
     }
 
     console.log(`Calculating yards for: ${vehicleYear} ${vehicleMake} ${vehicleModel}`);
@@ -63,38 +63,36 @@ Respond with ONLY a JSON object in this exact format:
   "reasoning": "<brief explanation>"
 }`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        response_format: { type: 'json_object' }
+        contents: [{
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          responseMimeType: 'application/json'
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Lovable AI error:', errorText);
+      console.error('Gemini API error:', errorText);
       throw new Error(`AI calculation failed: ${response.status}`);
     }
 
     const data = await response.json();
     console.log('AI response received');
-    
-    if (!data.choices?.[0]?.message?.content) {
+
+    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!responseText) {
       throw new Error('No calculation data in response');
     }
 
-    const result = JSON.parse(data.choices[0].message.content);
+    const result = JSON.parse(responseText);
     
     console.log('Calculated yards:', result.yards);
 

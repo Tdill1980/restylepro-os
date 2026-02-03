@@ -20,9 +20,9 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const GOOGLE_AI_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
+    if (!GOOGLE_AI_API_KEY) {
+      throw new Error("GOOGLE_AI_API_KEY is not configured");
     }
 
     console.log(`Generating gradient thumbnail: ${gradientName} (${startColor} → ${endColor})`);
@@ -31,8 +31,8 @@ serve(async (req) => {
     const start = startColor || "vibrant color";
     const end = endColor || "black";
     const dir = direction || "vertical";
-    
-    const prompt = `Generate a high-quality gradient swatch tile for a vehicle wrap product called "${gradientName}". 
+
+    const prompt = `Generate a high-quality gradient swatch tile for a vehicle wrap product called "${gradientName}".
 
 Requirements:
 - 512x512 square image
@@ -44,27 +44,25 @@ Requirements:
 
 Do NOT add any text, logos, or watermarks to the image.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        modalities: ["image", "text"]
+        contents: [{
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          responseModalities: ["TEXT", "IMAGE"],
+          responseMimeType: "text/plain"
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("Gemini API error:", response.status, errorText);
       return new Response(
         JSON.stringify({ error: "Failed to generate gradient thumbnail" }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -72,7 +70,20 @@ Do NOT add any text, logos, or watermarks to the image.`;
     }
 
     const data = await response.json();
-    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+
+    // Extract image from Gemini response
+    const parts = data.candidates?.[0]?.content?.parts;
+    let imageUrl: string | null = null;
+
+    if (parts && Array.isArray(parts)) {
+      for (const part of parts) {
+        if (part.inlineData) {
+          const mimeType = part.inlineData.mimeType || 'image/png';
+          imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+          break;
+        }
+      }
+    }
 
     if (!imageUrl) {
       return new Response(

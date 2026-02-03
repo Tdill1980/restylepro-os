@@ -13,11 +13,11 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!GOOGLE_AI_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error('Missing required environment variables');
     }
 
@@ -51,37 +51,48 @@ Finish characteristics:
 
 Create a rectangular swatch (800x600px) showing the ${color.official_hex} color in ${color.finish} finish with a diagonal light reflection streak from top-right to bottom-left, matching professional 3M vinyl swatch photography style.`;
 
-        const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash-image-preview',
-            messages: [{
-              role: 'user',
-              content: prompt
+            contents: [{
+              parts: [{ text: prompt }]
             }],
-            modalities: ['image', 'text']
+            generationConfig: {
+              responseModalities: ['TEXT', 'IMAGE'],
+              responseMimeType: 'text/plain'
+            }
           }),
         });
 
         if (!aiResponse.ok) {
-          console.error(`AI generation failed for ${color.name}`);
+          console.error(`Gemini API generation failed for ${color.name}`);
           continue;
         }
 
         const aiData = await aiResponse.json();
-        const imageUrl = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
-        if (!imageUrl) {
+        // Extract image from Gemini response
+        const parts = aiData.candidates?.[0]?.content?.parts;
+        let base64Data: string | null = null;
+
+        if (parts && Array.isArray(parts)) {
+          for (const part of parts) {
+            if (part.inlineData) {
+              base64Data = part.inlineData.data;
+              break;
+            }
+          }
+        }
+
+        if (!base64Data) {
           console.error(`No image generated for ${color.name}`);
           continue;
         }
 
         // Convert base64 to blob
-        const base64Data = imageUrl.split(',')[1];
         const byteCharacters = atob(base64Data);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {

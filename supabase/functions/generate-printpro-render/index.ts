@@ -22,15 +22,15 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
+    if (!GOOGLE_AI_API_KEY) {
+      throw new Error('GOOGLE_AI_API_KEY not configured');
     }
 
     // Extract product data
-    const { 
-      swatchColor, 
-      swatchName, 
+    const {
+      swatchColor,
+      swatchName,
       finish = 'gloss',
       designUrl,
       designName = 'Custom Design'
@@ -49,29 +49,45 @@ serve(async (req) => {
       viewType
     });
 
-    console.log('Invoking AI with PrintPro prompt...');
+    console.log('Invoking Gemini API with PrintPro prompt...');
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
-        messages: [{ role: 'user', content: printProPrompt }],
-        modalities: ['image', 'text']
+        contents: [{
+          parts: [{ text: printProPrompt }]
+        }],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          responseMimeType: 'text/plain'
+        }
       })
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error('AI API error:', errorText);
-      throw new Error(`AI API error: ${aiResponse.status}`);
+      console.error('Gemini API error:', errorText);
+      throw new Error(`Gemini API error: ${aiResponse.status}`);
     }
 
     const aiData = await aiResponse.json();
-    const imageUrl = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+
+    // Extract image from Gemini response
+    const parts = aiData.candidates?.[0]?.content?.parts;
+    let imageUrl: string | null = null;
+
+    if (parts && Array.isArray(parts)) {
+      for (const part of parts) {
+        if (part.inlineData) {
+          const mimeType = part.inlineData.mimeType || 'image/png';
+          imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+          break;
+        }
+      }
+    }
 
     if (!imageUrl) {
       throw new Error('No image generated');

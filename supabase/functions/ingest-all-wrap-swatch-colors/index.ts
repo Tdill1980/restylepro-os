@@ -74,6 +74,23 @@ function isGenericColor(colorName: string): boolean {
   return colorName.length < 4 || GENERIC_COLORS.test(colorName.trim());
 }
 
+// Helper to convert image URL to base64 for Gemini Vision API
+async function imageUrlToBase64(url: string): Promise<{ mimeType: string; data: string } | null> {
+  try {
+    if (url.startsWith('data:')) {
+      const matches = url.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches) return { mimeType: matches[1], data: matches[2] };
+      return null;
+    }
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const contentType = response.headers.get('content-type') || 'image/png';
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    return { mimeType: contentType, data: base64 };
+  } catch { return null; }
+}
+
 // ==================== DATAFORSEO WITH CACHING ====================
 
 async function searchImages(
@@ -151,28 +168,28 @@ async function validateSwatchImage(imageUrl: string, apiKey: string): Promise<{ 
   const prompt = `Is this a real vinyl wrap swatch? Return JSON: {"score": 0.0-1.0, "isValid": true/false}`;
 
   try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const imageData = await imageUrlToBase64(imageUrl);
+    if (!imageData) return { isValid: false, score: 0 };
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: imageUrl } }
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: imageData.mimeType, data: imageData.data } }
           ]
-        }],
+        }]
       }),
     });
 
     if (!response.ok) return { isValid: false, score: 0 };
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const jsonMatch = content.match(/\{[^}]+\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
@@ -230,22 +247,30 @@ Current finish type: ${finish}
 Current hex: ${hex}`;
 
   try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Parse the base64Image to extract mimeType and data
+    const base64Match = base64Image.match(/^data:([^;]+);base64,(.+)$/);
+    if (!base64Match) {
+      console.log(`   ❌ Invalid base64 image format`);
+      return null;
+    }
+    const mimeType = base64Match[1];
+    const base64Data = base64Match[2];
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        max_tokens: 1024,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: base64Image } }
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType, data: base64Data } }
           ]
         }],
+        generationConfig: {
+          maxOutputTokens: 1024
+        }
       }),
     });
 
@@ -256,7 +281,7 @@ Current hex: ${hex}`;
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
     // Try to extract JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -316,7 +341,7 @@ async function storeReferencePhotos(
 async function processSwatch(
   swatch: any, 
   supabase: any, 
-  lovableApiKey: string, 
+  googleAiApiKey: string, 
   dataForSeoKey: string
 ): Promise<{ success: boolean; message: string }> {
   const { id, name, manufacturer, finish, hex, lab, material_validated, media_url } = swatch;
@@ -360,7 +385,7 @@ async function processSwatch(
         const validations = await Promise.all(
           toValidate.map(async (img) => {
             if (!isValidImageUrl(img.url)) return { url: img.url, isValid: false, score: 0 };
-            const result = await validateSwatchImage(img.url, lovableApiKey);
+            const result = await validateSwatchImage(img.url, googleAiApiKey);
             return { url: img.url, ...result };
           })
         );
@@ -384,7 +409,7 @@ async function processSwatch(
     // Extract when material is not yet validated OR LAB is missing
     let material: any = null;
     if (!material_validated || !lab) {
-      material = await retry(() => extractMaterialProfile(bestImage!, lovableApiKey, finish, hex));
+      material = await retry(() => extractMaterialProfile(bestImage!, googleAiApiKey, finish, hex));
       if (material?.lab) {
         console.log(`   🔬 LAB(${material.lab.L?.toFixed(0)}, ${material.lab.a?.toFixed(0)}, ${material.lab.b?.toFixed(0)})`);
       }
@@ -441,11 +466,11 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+  const googleAiApiKey = Deno.env.get('GOOGLE_AI_API_KEY');
   const dataForSeoKey = Deno.env.get('DATAFORSEO_API_KEY');
 
-  if (!lovableApiKey) {
-    return new Response(JSON.stringify({ error: 'LOVABLE_API_KEY not configured' }), 
+  if (!googleAiApiKey) {
+    return new Response(JSON.stringify({ error: 'GOOGLE_AI_API_KEY not configured' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
@@ -521,7 +546,7 @@ serve(async (req) => {
 
       // Parallel processing within batch
       const batchResults = await Promise.all(
-        batch.map(swatch => processSwatch(swatch, supabase, lovableApiKey, dataForSeoKey))
+        batch.map(swatch => processSwatch(swatch, supabase, googleAiApiKey, dataForSeoKey))
       );
 
       for (const result of batchResults) {

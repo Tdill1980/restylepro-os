@@ -15,13 +15,30 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
 
-    if (!LOVABLE_API_KEY) {
+    if (!GOOGLE_AI_API_KEY) {
       return new Response(
         JSON.stringify({ error: 'AI service not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Helper to convert image URL to base64
+    async function imageUrlToBase64(url: string): Promise<{ mimeType: string; data: string } | null> {
+      try {
+        if (url.startsWith('data:')) {
+          const matches = url.match(/^data:([^;]+);base64,(.+)$/);
+          if (matches) return { mimeType: matches[1], data: matches[2] };
+          return null;
+        }
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        const contentType = response.headers.get('content-type') || 'image/png';
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        return { mimeType: contentType, data: base64 };
+      } catch { return null; }
     }
 
     const { swatch_id, manufacturer, color_name } = await req.json();
@@ -129,30 +146,35 @@ Respond ONLY with JSON:
   "reasoning": "<brief explanation>"
 }`;
 
-        const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        // Convert image to base64
+        const imageData = await imageUrlToBase64(ref.image_url);
+        if (!imageData) {
+          console.error(`Failed to fetch image ${ref.id}`);
+          continue;
+        }
+
+        const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
-            messages: [
-              { role: 'user', content: [
-                { type: 'text', text: analysisPrompt },
-                { type: 'image_url', image_url: { url: ref.image_url } }
-              ]}
-            ],
+            contents: [{
+              parts: [
+                { text: analysisPrompt },
+                { inlineData: { mimeType: imageData.mimeType, data: imageData.data } }
+              ]
+            }]
           }),
         });
 
         if (!aiResponse.ok) {
-          console.error(`AI request failed for image ${ref.id}`);
+          console.error(`Gemini API request failed for image ${ref.id}`);
           continue;
         }
 
         const aiData = await aiResponse.json();
-        const content = aiData.choices?.[0]?.message?.content || '';
+        const content = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
         
         // Extract JSON from response
         const jsonMatch = content.match(/\{[\s\S]*\}/);

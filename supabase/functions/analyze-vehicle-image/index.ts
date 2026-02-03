@@ -12,26 +12,15 @@ serve(async (req) => {
 
   try {
     const { imageData } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GOOGLE_AI_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!GOOGLE_AI_API_KEY) {
+      throw new Error("GOOGLE_AI_API_KEY is not configured");
     }
 
-    console.log("Analyzing vehicle image with AI...");
+    console.log("Analyzing vehicle image with Gemini API...");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `You are a vehicle identification expert. Analyze images of vehicles and extract:
+    const systemPrompt = `You are a vehicle identification expert. Analyze images of vehicles and extract:
 - Vehicle Make (manufacturer brand)
 - Vehicle Model (specific model name)
 - Vehicle Year (if visible from body style/design, otherwise return empty string)
@@ -47,36 +36,47 @@ Return ONLY valid JSON in this exact format:
   "finish": "gloss"
 }
 
-If you cannot identify something with confidence, use an empty string "". Be specific with make/model (e.g., "Ford F-150 Raptor" should be Make: "Ford", Model: "Raptor").`
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Analyze this vehicle image and identify the make, model, year (if determinable), color, and finish type."
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: imageData
-                }
-              }
-            ]
-          }
-        ],
-        temperature: 0.1
+If you cannot identify something with confidence, use an empty string "". Be specific with make/model (e.g., "Ford F-150 Raptor" should be Make: "Ford", Model: "Raptor").`;
+
+    const userPrompt = "Analyze this vehicle image and identify the make, model, year (if determinable), color, and finish type.";
+
+    // Extract base64 from data URL if present
+    let mimeType = 'image/png';
+    let base64Data = imageData;
+    if (imageData.startsWith('data:')) {
+      const matches = imageData.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches) {
+        mimeType = matches[1];
+        base64Data = matches[2];
+      }
+    }
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: systemPrompt + "\n\n" + userPrompt },
+            { inlineData: { mimeType, data: base64Data } }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.1
+        }
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI API error:", response.status, errorText);
-      throw new Error(`AI API returned ${response.status}: ${errorText}`);
+      console.error("Gemini API error:", response.status, errorText);
+      throw new Error(`Gemini API returned ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
-    const aiResponse = data.choices?.[0]?.message?.content;
+    const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
     console.log("AI raw response:", aiResponse);
 

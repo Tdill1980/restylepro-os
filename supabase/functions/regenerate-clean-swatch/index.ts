@@ -21,8 +21,8 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
+    if (!GOOGLE_AI_API_KEY) {
       return new Response(
         JSON.stringify({ error: 'AI service not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -31,8 +31,8 @@ serve(async (req) => {
 
     console.log('Generating clean swatch for:', patternName);
 
-    const prompt = `Create a seamless, tileable texture pattern of ${patternDescription}. 
-    
+    const prompt = `Create a seamless, tileable texture pattern of ${patternDescription}.
+
 CRITICAL REQUIREMENTS:
 - Pure pattern/texture ONLY - no text, no labels, no watermarks, no logos
 - Clean and professional seamless texture
@@ -42,28 +42,26 @@ CRITICAL REQUIREMENTS:
 - Pattern name: ${patternName}
 - Just the raw material texture`;
 
-    // Call Lovable AI for image generation
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Call Gemini API for image generation
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_AI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image-preview',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        modalities: ['image', 'text']
+        contents: [{
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          responseMimeType: 'text/plain'
+        }
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI service error:', response.status, errorText);
+      console.error('Gemini API error:', response.status, errorText);
       return new Response(
         JSON.stringify({ error: `AI service error: ${response.status}` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -71,12 +69,21 @@ CRITICAL REQUIREMENTS:
     }
 
     const data = await response.json();
-    console.log('AI response received');
-    
-    const generatedImageBase64 = 
-      data.choices?.[0]?.message?.images?.[0]?.image_url?.url ||
-      data.choices?.[0]?.message?.content?.[0]?.image_url?.url ||
-      null;
+    console.log('Gemini API response received');
+
+    // Extract image from Gemini response
+    const parts = data.candidates?.[0]?.content?.parts;
+    let generatedImageBase64: string | null = null;
+
+    if (parts && Array.isArray(parts)) {
+      for (const part of parts) {
+        if (part.inlineData) {
+          const mimeType = part.inlineData.mimeType || 'image/png';
+          generatedImageBase64 = `data:${mimeType};base64,${part.inlineData.data}`;
+          break;
+        }
+      }
+    }
 
     if (!generatedImageBase64) {
       console.error('No image in response');
