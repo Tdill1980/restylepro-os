@@ -140,3 +140,6 @@ verify_jwt = false
 
 [functions.track-quote-event]
 verify_jwt = false
+
+[functions.upsert-3m-colors]
+verify_jwt = false
