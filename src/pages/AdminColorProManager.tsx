@@ -256,7 +256,7 @@ export default function AdminColorProManager() {
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <p>• Generation processes colors in small batches (5 at a time) to avoid rate limits</p>
-              <p>• Each swatch takes ~5-10 seconds to generate with Google's Imagen 3</p>
+              <p>• Each swatch takes ~5-10 seconds to generate with OpenAI's gpt-image-1</p>
               <p>• The process may take 10-30 minutes for large libraries</p>
               <p>• Do not close this page while generation is in progress</p>
               <p>• Failed swatches can be regenerated individually later</p>
