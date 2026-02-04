@@ -13,7 +13,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const GEMINI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -134,28 +134,58 @@ DESIGN SOURCE: ${designName || 'Customer Design Proof'}
 OUTPUT: Ultra-photorealistic ${angle.label} of ${vehicleString} with the uploaded custom wrap design applied EXACTLY as shown. MUST be 16:9 landscape. Must look like a real photograph of an actual wrapped vehicle in a professional studio.`;
 
       try {
-        const response = await fetch('https://api.openai.com/v1/images/generate', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openAIApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-image-1',
-            prompt,
-            size: '1536x1024',
-            quality: 'high',
-          }),
-        });
+        // Use Google Imagen 3 for image generation
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GEMINI_API_KEY}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              instances: [{ prompt }],
+              parameters: {
+                sampleCount: 1,
+                aspectRatio: '16:9',
+                safetyFilterLevel: 'block_only_high'
+              }
+            })
+          }
+        );
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`OpenAI error for ${viewType}:`, errorText);
+          console.error(`Gemini Imagen error for ${viewType}:`, errorText);
           continue;
         }
 
         const data = await response.json();
-        const imageUrl = data.data?.[0]?.url;
+        const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
+
+        if (!base64Image) {
+          console.error(`No image data returned for ${viewType}`);
+          continue;
+        }
+
+        // Upload base64 image to Supabase storage and get public URL
+        const imageBuffer = Uint8Array.from(atob(base64Image), c => c.charCodeAt(0));
+        const fileName = `approvepro/${jobId || crypto.randomUUID()}/${viewType}-${Date.now()}.png`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('renders')
+          .upload(fileName, imageBuffer, {
+            contentType: 'image/png',
+            upsert: true
+          });
+
+        if (uploadError) {
+          console.error(`Storage upload error for ${viewType}:`, uploadError);
+          continue;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from('renders')
+          .getPublicUrl(fileName);
+
+        const imageUrl = publicUrlData?.publicUrl;
 
         if (imageUrl) {
           outputs.push({
