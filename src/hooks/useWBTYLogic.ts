@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscriptionLimits } from "./useSubscriptionLimits";
 
@@ -124,7 +125,7 @@ export const useWBTYLogic = () => {
         useCustomDesign: true,
       };
 
-      const { data: heroData, error: heroError } = await supabase.functions.invoke("generate-color-render", {
+      const { data: heroData, error: heroError } = await renderClient.functions.invoke("generate-color-render", {
         body: heroPayload,
       });
 
@@ -190,10 +191,10 @@ export const useWBTYLogic = () => {
 
       // Generate all additional views in parallel
       const [sideResult, rearResult, topResult, closeupResult] = await Promise.all([
-        supabase.functions.invoke("generate-color-render", { body: { ...basePayload, viewType: "side" } }),
-        supabase.functions.invoke("generate-color-render", { body: { ...basePayload, viewType: "rear" } }),
-        supabase.functions.invoke("generate-color-render", { body: { ...basePayload, viewType: "top" } }),
-        supabase.functions.invoke("generate-color-render", { body: { ...basePayload, viewType: "closeup" } }),
+        renderClient.functions.invoke("generate-color-render", { body: { ...basePayload, viewType: "side" } }),
+        renderClient.functions.invoke("generate-color-render", { body: { ...basePayload, viewType: "rear" } }),
+        renderClient.functions.invoke("generate-color-render", { body: { ...basePayload, viewType: "top" } }),
+        renderClient.functions.invoke("generate-color-render", { body: { ...basePayload, viewType: "closeup" } }),
       ]);
 
       if (sideResult.data?.renderUrl && rearResult.data?.renderUrl && topResult.data?.renderUrl && closeupResult.data?.renderUrl) {
@@ -231,7 +232,7 @@ export const useWBTYLogic = () => {
 
     try {
       setIsCalculatingSquareFeet(true);
-      const { data, error } = await supabase.functions.invoke('calculate-film-yards', {
+      const { data, error } = await renderClient.functions.invoke('calculate-film-yards', {
         body: { vehicleYear, vehicleMake, vehicleModel }
       });
 

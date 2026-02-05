@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { supabase } from '@/integrations/supabase/client';
+import { renderClient } from '@/integrations/supabase/renderClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -66,7 +67,7 @@ export default function AdminEnrichSwatches() {
     setLogs(['Starting color enrichment...']);
 
     try {
-      const { data, error } = await supabase.functions.invoke('enrich-vinyl-colors');
+      const { data, error } = await renderClient.functions.invoke('enrich-vinyl-colors');
 
       if (error) {
         setLogs(prev => [...prev, `Error: ${error.message}`]);
@@ -103,7 +104,7 @@ export default function AdminEnrichSwatches() {
     setTestResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('get-vinyl-hex', {
+      const { data, error } = await renderClient.functions.invoke('get-vinyl-hex', {
         body: { manufacturer: testColor.manufacturer, colorName: testColor.name }
       });
 

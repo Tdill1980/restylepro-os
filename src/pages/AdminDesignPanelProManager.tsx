@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -469,7 +470,7 @@ const AdminDesignPanelProManager = () => {
       const vehicleName = formatVehicleName(randomVehicle);
       console.log("🚗 Generating 3D preview with random vehicle:", vehicleName);
       
-      const { data, error } = await supabase.functions.invoke('generate-color-render', {
+      const { data, error } = await renderClient.functions.invoke('generate-color-render', {
         body: {
           vehicleYear: randomVehicle.year.toString(),
           vehicleMake: randomVehicle.make,
@@ -574,7 +575,7 @@ const AdminDesignPanelProManager = () => {
       // Generate each additional view
       for (const viewType of additionalViews) {
         console.log(`🚗 Generating ${viewType} view for ${panelName}...`);
-        const { data, error } = await supabase.functions.invoke('generate-color-render', {
+        const { data, error } = await renderClient.functions.invoke('generate-color-render', {
           body: {
             vehicleYear: randomVehicle.year.toString(),
             vehicleMake: randomVehicle.make,

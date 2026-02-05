@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useGenerationLimit } from "@/hooks/useGenerationLimit";
 import { useRenderPolling } from "@/hooks/useRenderPolling";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { PaywallModal } from "@/components/PaywallModal";
 import { Sparkles, Upload } from "lucide-react";
 
@@ -81,7 +82,7 @@ const MaterialMode = () => {
         customSwatchUrl: swatchData.url,
       };
 
-      const { data, error } = await supabase.functions.invoke("generate-color-render", {
+      const { data, error } = await renderClient.functions.invoke("generate-color-render", {
         body: payload,
       });
 

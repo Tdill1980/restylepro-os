@@ -12,6 +12,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { renderClient } from '@/integrations/supabase/renderClient';
 import { getToolLabel, type ToolKey } from './tool-registry';
 
 export interface ProofView {
@@ -76,7 +77,7 @@ export async function generateAndSaveProof(request: ProofRequest): Promise<Proof
     const toolLabel = getToolLabel(request.toolKey);
 
     // 1. Call the edge function to generate PDF
-    const { data: pdfData, error: pdfError } = await supabase.functions.invoke('generate-approvepro-pdf', {
+    const { data: pdfData, error: pdfError } = await renderClient.functions.invoke('generate-approvepro-pdf', {
       body: {
         toolName: toolLabel,
         views: request.views,
@@ -191,7 +192,7 @@ export async function generateProofPdf(request: ProofRequest): Promise<{ success
   try {
     const toolLabel = getToolLabel(request.toolKey);
 
-    const { data, error } = await supabase.functions.invoke('generate-approvepro-pdf', {
+    const { data, error } = await renderClient.functions.invoke('generate-approvepro-pdf', {
       body: {
         toolName: toolLabel,
         views: request.views,

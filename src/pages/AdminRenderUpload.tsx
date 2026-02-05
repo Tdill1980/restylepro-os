@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { Upload, Loader2, X, Check, Sparkles } from "lucide-react";
 import { extractColorsFromImage } from "@/lib/color-extractor";
 
@@ -162,7 +163,7 @@ const AdminRenderUpload = () => {
       const imageData = await base64Promise;
 
       // Call edge function to analyze image
-      const { data, error } = await supabase.functions.invoke('analyze-vehicle-image', {
+      const { data, error } = await renderClient.functions.invoke('analyze-vehicle-image', {
         body: { imageData }
       });
 

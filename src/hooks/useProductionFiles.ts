@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { toast } from "sonner";
 
 // Production-enabled tiers
@@ -89,7 +90,7 @@ export const useProductionFiles = (): UseProductionFilesReturn => {
         return;
       }
 
-      const response = await supabase.functions.invoke('generate-production-files', {
+      const response = await renderClient.functions.invoke('generate-production-files', {
         body: {
           renderUrl,
           prompt,

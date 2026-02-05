@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,7 +55,7 @@ export default function AdminColorAudit() {
   const importColors = async () => {
     setImporting(true);
     try {
-      const response = await supabase.functions.invoke("import-official-colors", {
+      const response = await renderClient.functions.invoke("import-official-colors", {
         body: { manufacturer: "all" }
       });
 
@@ -77,7 +78,7 @@ export default function AdminColorAudit() {
         ? `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/color-charts/avery-sw900-poster.jpg`
         : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/color-charts/3m-2080-poster.jpg`;
 
-      const response = await supabase.functions.invoke("extract-color-swatches", {
+      const response = await renderClient.functions.invoke("extract-color-swatches", {
         body: { posterUrl, manufacturer }
       });
 

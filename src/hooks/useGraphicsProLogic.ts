@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { useSubscriptionLimits } from "./useSubscriptionLimits";
 import { toast } from "@/hooks/use-toast";
 import { parseGraphicsProLabel, detectFinishFromPrompt, detectManufacturerFromPrompt } from "@/lib/graphicspro-label-parser";
@@ -110,7 +111,7 @@ export const useGraphicsProLogic = () => {
         revision: revisionPrompt ? 'YES' : 'NO'
       });
 
-      const { data, error } = await supabase.functions.invoke('generate-color-render', {
+      const { data, error } = await renderClient.functions.invoke('generate-color-render', {
         body: {
           vehicleYear: year,
           vehicleMake: make,
@@ -215,7 +216,7 @@ export const useGraphicsProLogic = () => {
       const generatedViews: Array<{ type: string; url: string }> = [...allViews];
 
       const promises = viewTypes.map(async (viewType) => {
-        const { data, error } = await supabase.functions.invoke('generate-color-render', {
+        const { data, error } = await renderClient.functions.invoke('generate-color-render', {
           body: {
             vehicleYear: year,
             vehicleMake: make,

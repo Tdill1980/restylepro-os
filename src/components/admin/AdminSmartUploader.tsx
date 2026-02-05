@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { Upload, Loader2, Check, Sparkles } from "lucide-react";
 import { getVehicleByIndex, formatVehicleName, TOP_20_VEHICLES } from "@/lib/vehicle-selection";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -86,7 +87,7 @@ export const AdminSmartUploader = ({ productType, onUploadComplete }: AdminSmart
 
       // 2. AI Analysis
       setIsAnalyzing(true);
-      const { data: analysisData, error: analysisError } = await supabase.functions.invoke(
+      const { data: analysisData, error: analysisError } = await renderClient.functions.invoke(
         'analyze-panel-design',
         { body: { panelImageUrl: publicUrl } }
       );
@@ -215,7 +216,7 @@ export const AdminSmartUploader = ({ productType, onUploadComplete }: AdminSmart
           colorData.panelUrl = uploadedPattern.media_url;
         }
 
-        const { data, error } = await supabase.functions.invoke('generate-color-render', {
+        const { data, error } = await renderClient.functions.invoke('generate-color-render', {
           body: {
             vehicleYear: selectedVehicle.year,
             vehicleMake: normalizedMake,

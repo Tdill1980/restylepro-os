@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApproveModeRenderDisplay } from "../ApproveModeRenderDisplay";
@@ -292,7 +293,7 @@ export const ApproveModeComponent = () => {
     };
     
     return Promise.race([
-      supabase.functions.invoke('generate-color-render', {
+      renderClient.functions.invoke('generate-color-render', {
         body: {
           vehicleYear: year,
           vehicleMake: make,
@@ -426,7 +427,7 @@ export const ApproveModeComponent = () => {
       
       // Generate all views in parallel with revision prompt
       const viewPromises = viewTypes.map(viewType => 
-        supabase.functions.invoke('generate-color-render', {
+        renderClient.functions.invoke('generate-color-render', {
           body: {
             vehicleYear: year,
             vehicleMake: make,

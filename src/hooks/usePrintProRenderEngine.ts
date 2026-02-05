@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { renderClient } from '@/integrations/supabase/renderClient';
 import { toast } from 'sonner';
 
 interface ProductData {
@@ -29,7 +30,7 @@ export function usePrintProRenderEngine() {
       
       console.log('PrintPro generating render:', { vehicle, productData, viewType });
 
-      const { data, error } = await supabase.functions.invoke('generate-printpro-render', {
+      const { data, error } = await renderClient.functions.invoke('generate-printpro-render', {
         body: {
           vehicleYear: vehicle.year,
           vehicleMake: vehicle.make,

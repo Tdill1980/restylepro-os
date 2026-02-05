@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { Loader2, Wand2 } from "lucide-react";
 
 export default function AdminAverySwatchGenerator() {
@@ -22,7 +23,7 @@ export default function AdminAverySwatchGenerator() {
         description: "This may take several minutes...",
       });
 
-      const { data, error } = await supabase.functions.invoke('generate-avery-swatches');
+      const { data, error } = await renderClient.functions.invoke('generate-avery-swatches');
 
       if (error) throw error;
 

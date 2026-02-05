@@ -10,6 +10,7 @@ import { RealisticSwatch } from "@/components/ui/realistic-swatch";
 import { inkFusionColors, type InkFusionColor } from "@/lib/wpw-infusion-colors";
 import { Upload, Search, Wand2, Loader2, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { 
@@ -101,7 +102,7 @@ export default function AdminInkFusionManager() {
       const renderUrls: Record<string, string> = {};
       
       for (const viewType of views) {
-        const { data, error } = await supabase.functions.invoke('generate-color-render', {
+        const { data, error } = await renderClient.functions.invoke('generate-color-render', {
           body: {
             vehicleYear,
             vehicleMake,
@@ -251,7 +252,7 @@ export default function AdminInkFusionManager() {
             currentView: viewType
           }));
 
-          const { data, error } = await supabase.functions.invoke('generate-color-render', {
+          const { data, error } = await renderClient.functions.invoke('generate-color-render', {
             body: {
               vehicleYear: vehicle.year,
               vehicleMake: vehicle.make,
@@ -386,7 +387,7 @@ export default function AdminInkFusionManager() {
       
       try {
         // Call edge function to generate swatch
-        const { data, error } = await supabase.functions.invoke('generate-vinyl-swatch', {
+        const { data, error } = await renderClient.functions.invoke('generate-vinyl-swatch', {
           body: {
             colorName: color.name,
             finish: color.finish,

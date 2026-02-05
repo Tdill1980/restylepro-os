@@ -13,6 +13,7 @@ import { RenderResults } from '@/components/visualize/RenderResults';
 import { InkFusionColor } from '@/lib/wpw-infusion-colors';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { supabase } from '@/integrations/supabase/client';
+import { renderClient } from '@/integrations/supabase/renderClient';
 import { useToast } from '@/hooks/use-toast';
 import { useRenderPolling } from '@/hooks/useRenderPolling';
 import { extractColorsFromImage } from '@/lib/color-extractor';
@@ -59,7 +60,7 @@ export default function Visualize() {
     else { toast({ title: 'Select color', variant: 'destructive' }); return; }
     try {
       setIsGenerating(true);
-      const { data, error } = await supabase.functions.invoke('generate-color-render', { body: payload });
+      const { data, error } = await renderClient.functions.invoke('generate-color-render', { body: payload });
       if (error) throw error;
       setVisualizationId(data.visualizationId);
       setTotalViewsExpected(data.totalViews);

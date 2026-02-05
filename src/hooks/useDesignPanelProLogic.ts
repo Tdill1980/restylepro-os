@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscriptionLimits } from "./useSubscriptionLimits";
 
@@ -135,7 +136,7 @@ export const useDesignPanelProLogic = () => {
         return 'auth_required';
       }
       
-      const { data, error } = await supabase.functions.invoke('generate-color-render', {
+      const { data, error } = await renderClient.functions.invoke('generate-color-render', {
         body: {
           vehicleYear: year,
           vehicleMake: make,
@@ -217,7 +218,7 @@ export const useDesignPanelProLogic = () => {
         : `${window.location.origin}${selectedPanel.media_url}`;
 
       // Generate close-up first (shows pattern detail)
-      const closeupPromise = supabase.functions.invoke('generate-color-render', {
+      const closeupPromise = renderClient.functions.invoke('generate-color-render', {
         body: {
           vehicleYear: year,
           vehicleMake: make,
@@ -236,7 +237,7 @@ export const useDesignPanelProLogic = () => {
 
       // Then generate remaining views
       const otherViewsPromises = ['side', 'rear', 'top'].map(viewType =>
-        supabase.functions.invoke('generate-color-render', {
+        renderClient.functions.invoke('generate-color-render', {
           body: {
             vehicleYear: year,
             vehicleMake: make,

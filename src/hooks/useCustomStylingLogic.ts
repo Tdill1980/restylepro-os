@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { useSubscriptionLimits } from "./useSubscriptionLimits";
 import { toast } from "@/hooks/use-toast";
 import type { ColorZone, MaterialEstimate } from "@/components/colorpro/MaterialEstimateDisplay";
@@ -232,7 +233,7 @@ export const useCustomStylingLogic = () => {
 
     try {
       // First get base vehicle yardage
-      const { data: baseData, error: baseError } = await supabase.functions.invoke('calculate-film-yards', {
+      const { data: baseData, error: baseError } = await renderClient.functions.invoke('calculate-film-yards', {
         body: { vehicleYear, vehicleMake, vehicleModel }
       });
 
@@ -360,7 +361,7 @@ export const useCustomStylingLogic = () => {
       setCurrentJobId(jobData.id);
 
       // Call generate-color-render with CustomStyling mode
-      const { data, error } = await supabase.functions.invoke('generate-color-render', {
+      const { data, error } = await renderClient.functions.invoke('generate-color-render', {
         body: {
           vehicleYear: year,
           vehicleMake: make,
@@ -447,7 +448,7 @@ export const useCustomStylingLogic = () => {
       const generatedViews = [...allViews];
 
       const promises = additionalViewTypes.map(async (viewType) => {
-        const { data, error } = await supabase.functions.invoke('generate-color-render', {
+        const { data, error } = await renderClient.functions.invoke('generate-color-render', {
           body: {
             vehicleYear: year,
             vehicleMake: make,

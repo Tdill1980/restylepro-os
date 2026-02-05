@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { ArrowLeft, Wand2, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -50,7 +51,7 @@ export default function AdminSwatchCleaner() {
       setCurrentSwatch(name);
 
       // Call edge function to clean the swatch
-      const { data, error } = await supabase.functions.invoke('clean-swatch-image', {
+      const { data, error } = await renderClient.functions.invoke('clean-swatch-image', {
         body: {
           imageUrl: mediaUrl,
           instruction: 'Remove all text, labels, and words from this image. Keep only the pattern/texture/color. Make it a clean seamless texture with no overlays, no text, no watermarks. The output should be just the pure material pattern.'

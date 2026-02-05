@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscriptionLimits } from "./useSubscriptionLimits";
 import { FadeStyleId } from "@/lib/fadeStyles";
@@ -125,7 +126,7 @@ export const useFadeWrapLogic = () => {
         colorHex: resolvedHex
       });
       
-      const { data, error } = await supabase.functions.invoke('generate-color-render', {
+      const { data, error } = await renderClient.functions.invoke('generate-color-render', {
         body: {
           vehicleYear: year,
           vehicleMake: make,
@@ -173,7 +174,7 @@ export const useFadeWrapLogic = () => {
         
         try {
           console.log('🔍 Validating FadeWraps gradient quality...');
-          const { data: validationResult, error: validationError } = await supabase.functions.invoke('validate-fade-quality', {
+          const { data: validationResult, error: validationError } = await renderClient.functions.invoke('validate-fade-quality', {
             body: { renderUrl: data.renderUrl, renderId: data.renderId }
           });
           
@@ -189,7 +190,7 @@ export const useFadeWrapLogic = () => {
               toast({ title: "Optimizing gradient...", description: "Auto-improving fade smoothness" });
               
               // Call regenerate with a hint to improve gradient
-              const { data: regenData, error: regenError } = await supabase.functions.invoke('generate-color-render', {
+              const { data: regenData, error: regenError } = await renderClient.functions.invoke('generate-color-render', {
                 body: {
                   vehicleYear: year,
                   vehicleMake: make,
@@ -284,7 +285,7 @@ export const useFadeWrapLogic = () => {
         const fadeSpec = buildFadeSpec(fadeStyle as FadeStyleKey);
         const studioLock = buildStudioLock();
         
-        const { data, error } = await supabase.functions.invoke('generate-color-render', {
+        const { data, error } = await renderClient.functions.invoke('generate-color-render', {
           body: {
             vehicleYear: year,
             vehicleMake: make,

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { Upload, Loader2 } from "lucide-react";
 import { UnknownSwatchModal } from "./UnknownSwatchModal";
 
@@ -161,7 +162,7 @@ export function SwatchUploader({ onAnalysisComplete }: SwatchUploaderProps) {
 
       // Call AI analysis edge function
       console.log("🤖 SwatchUploader: Calling analyze-vinyl-swatch function...");
-      const { data: analysisData, error: analysisError } = await supabase.functions.invoke(
+      const { data: analysisData, error: analysisError } = await renderClient.functions.invoke(
         "analyze-vinyl-swatch",
         {
           body: {

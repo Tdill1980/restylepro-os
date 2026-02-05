@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Sparkles, Loader2 } from "lucide-react";
@@ -47,7 +48,7 @@ export default function AdminColorProManager() {
       while (totalGenerated + totalFailed < totalColors) {
         console.log(`Processing batch: ${totalGenerated + totalFailed}/${totalColors}`);
         
-        const { data, error } = await supabase.functions.invoke('batch-generate-swatches', {
+        const { data, error } = await renderClient.functions.invoke('batch-generate-swatches', {
           body: { 
             colorLibrary,
             limit: batchSize,

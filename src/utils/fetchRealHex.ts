@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 
 /**
  * Fetches the real hex color for a vinyl swatch using AI.
@@ -9,7 +9,7 @@ export async function fetchRealHex(manufacturer: string, colorName: string): Pro
   if (!manufacturer || !colorName) return "NOT_FOUND";
   
   try {
-    const { data, error } = await supabase.functions.invoke('get-vinyl-hex', {
+    const { data, error } = await renderClient.functions.invoke('get-vinyl-hex', {
       body: { manufacturer, colorName }
     });
 

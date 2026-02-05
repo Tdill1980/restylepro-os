@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { renderClient } from '@/integrations/supabase/renderClient';
 import { useToast } from '@/hooks/use-toast';
 import { getAllAngles, getSpinViewAngle } from '@/lib/spin-view-angles';
 
@@ -61,7 +62,7 @@ export function use360SpinLogic({
         const angleInfo = getSpinViewAngle(angle);
         
         try {
-          const { data, error } = await supabase.functions.invoke('generate-color-render', {
+          const { data, error } = await renderClient.functions.invoke('generate-color-render', {
             body: {
               vehicleYear: vehicleData.year,
               vehicleMake: vehicleData.make,

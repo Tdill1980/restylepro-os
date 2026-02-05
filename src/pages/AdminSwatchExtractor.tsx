@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { CheckCircle2, XCircle, Loader2, Image as ImageIcon } from "lucide-react";
@@ -43,7 +44,7 @@ export default function AdminSwatchExtractor() {
       const allResults: ExtractionResult[] = [];
 
       while (hasMore) {
-        const { data, error } = await supabase.functions.invoke<ExtractionResponse>(
+        const { data, error } = await renderClient.functions.invoke<ExtractionResponse>(
           "extract-official-swatches",
           {
             body: {

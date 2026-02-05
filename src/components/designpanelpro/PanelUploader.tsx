@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { Upload, Loader2 } from "lucide-react";
 import { processPanelImage, uploadPanelImages } from "@/lib/panel-processor";
 
@@ -62,7 +63,7 @@ export const PanelUploader = ({ onPanelUploaded }: PanelUploaderProps) => {
 
       // Analyze with AI
       setIsAnalyzing(true);
-      const { data: analysisData, error: analysisError } = await supabase.functions.invoke(
+      const { data: analysisData, error: analysisError } = await renderClient.functions.invoke(
         'analyze-panel-design',
         { body: { panelImageUrl: panelUrl } }
       );

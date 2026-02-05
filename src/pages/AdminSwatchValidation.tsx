@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { renderClient } from '@/integrations/supabase/renderClient';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Button } from '@/components/ui/button';
@@ -134,7 +135,7 @@ export default function AdminSwatchValidation() {
   const handleValidateImages = async (swatch: VinylSwatch) => {
     setProcessing(`validate-${swatch.id}`);
     try {
-      const { data, error } = await supabase.functions.invoke('validate-swatch-images', {
+      const { data, error } = await renderClient.functions.invoke('validate-swatch-images', {
         body: { swatch_id: swatch.id }
       });
 
@@ -156,7 +157,7 @@ export default function AdminSwatchValidation() {
   const handleExtractProfile = async (swatch: VinylSwatch) => {
     setProcessing(`extract-${swatch.id}`);
     try {
-      const { data, error } = await supabase.functions.invoke('extract-material-profile', {
+      const { data, error } = await renderClient.functions.invoke('extract-material-profile', {
         body: { swatch_id: swatch.id }
       });
 
@@ -180,7 +181,7 @@ export default function AdminSwatchValidation() {
   const handleSearchWeb = async (swatch: VinylSwatch) => {
     setProcessing(`search-${swatch.id}`);
     try {
-      const { data, error } = await supabase.functions.invoke('search-vinyl-product-images', {
+      const { data, error } = await renderClient.functions.invoke('search-vinyl-product-images', {
         body: {
           manufacturer: swatch.manufacturer,
           colorName: swatch.name,
@@ -236,7 +237,7 @@ export default function AdminSwatchValidation() {
           .limit(1);
 
         if (!refs || refs.length === 0) {
-          await supabase.functions.invoke('search-vinyl-product-images', {
+          await renderClient.functions.invoke('search-vinyl-product-images', {
             body: {
               manufacturer: swatch.manufacturer,
               colorName: swatch.name,
@@ -246,12 +247,12 @@ export default function AdminSwatchValidation() {
         }
 
         // Validate images
-        await supabase.functions.invoke('validate-swatch-images', {
+        await renderClient.functions.invoke('validate-swatch-images', {
           body: { swatch_id: swatch.id }
         });
 
         // Extract profile
-        await supabase.functions.invoke('extract-material-profile', {
+        await renderClient.functions.invoke('extract-material-profile', {
           body: { swatch_id: swatch.id }
         });
       }

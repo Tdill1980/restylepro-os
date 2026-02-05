@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscriptionLimits } from "./useSubscriptionLimits";
 import { FadeStyleId } from "@/lib/fadeStyles";
@@ -120,7 +121,7 @@ export const useDesignProLogic = () => {
 
       if (mode === "panels") {
         // Use dedicated design-panel-generate function (no auth required)
-        const { data, error } = await supabase.functions.invoke('design-panel-generate', {
+        const { data, error } = await renderClient.functions.invoke('design-panel-generate', {
           body: {
             vehicle,
             panelUrl: selectedPattern.media_url,
@@ -159,7 +160,7 @@ export const useDesignProLogic = () => {
           return;
         }
 
-        const { data, error } = await supabase.functions.invoke('generate-color-render', {
+        const { data, error } = await renderClient.functions.invoke('generate-color-render', {
           body: {
             vehicleYear: year,
             vehicleMake: make,
@@ -226,7 +227,7 @@ export const useDesignProLogic = () => {
       if (mode === "panels") {
         // Use dedicated design-panel-generate function for each view
         const promises = views.map(viewType => 
-          supabase.functions.invoke('design-panel-generate', {
+          renderClient.functions.invoke('design-panel-generate', {
             body: {
               vehicle,
               panelUrl: selectedPattern.media_url,
@@ -270,7 +271,7 @@ export const useDesignProLogic = () => {
         const isInkFusion = !!(selectedPattern as any).isInkFusion || !!(selectedPattern as any).inkFusionColor;
 
         const promises = views.map(viewType => 
-          supabase.functions.invoke('generate-color-render', {
+          renderClient.functions.invoke('generate-color-render', {
             body: {
               vehicleYear: year,
               vehicleMake: make,

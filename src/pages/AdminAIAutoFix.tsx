@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import { Loader2, Wand2, AlertTriangle, CheckCircle } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -20,7 +21,7 @@ export default function AdminAIAutoFix() {
     setResults(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke("ai-prompt-auto-fix", {
+      const { data, error } = await renderClient.functions.invoke("ai-prompt-auto-fix", {
         body: { 
           renderType, 
           minFlags,

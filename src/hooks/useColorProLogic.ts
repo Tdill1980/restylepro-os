@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { renderClient } from "@/integrations/supabase/renderClient";
 import type { InkFusionColor } from "@/lib/wpw-infusion-colors";
 import { useSubscriptionLimits } from "./useSubscriptionLimits";
 import { loadAllVinylSwatches, convertVinylSwatchToInkFusionColor, type VinylSwatch } from "@/lib/vinyl-intelligence";
@@ -153,7 +154,7 @@ export const useColorProLogic = () => {
         }
       }
       
-      const { data, error } = await supabase.functions.invoke('generate-color-render', {
+      const { data, error } = await renderClient.functions.invoke('generate-color-render', {
         body: {
           vehicleYear: year,
           vehicleMake: make,
@@ -305,7 +306,7 @@ export const useColorProLogic = () => {
           useModeType = 'ColorPro';
         }
 
-        const { data, error } = await supabase.functions.invoke('generate-color-render', {
+        const { data, error } = await renderClient.functions.invoke('generate-color-render', {
           body: {
             vehicleYear: year,
             vehicleMake: make,
