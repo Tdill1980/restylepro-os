@@ -86,14 +86,28 @@ export const ManufacturerColorBrowser = ({
       setIsLoading(true);
       
       // FIRST: Try manufacturer_colors (new authoritative table)
+      // Note: Removed is_verified filter since newly inserted colors may not have it set
       const { data: mfcData, error: mfcError } = await dataClient
         .from("manufacturer_colors")
         .select("*")
-        .eq("is_verified", true)
         .order("manufacturer", { ascending: true })
         .order("official_name", { ascending: true });
 
+      if (mfcError) {
+        console.error("❌ Error fetching manufacturer_colors:", mfcError);
+      }
+
+      console.log(`📊 manufacturer_colors query returned ${mfcData?.length || 0} rows`);
+
       if (mfcData && mfcData.length > 0) {
+        // Log sample data for debugging
+        const sample = mfcData.slice(0, 3);
+        console.log("📋 Sample data:", sample.map(c => ({
+          name: c.official_name,
+          is_ppf: c.is_ppf,
+          is_verified: c.is_verified
+        })));
+
         console.log(`✅ Loaded ${mfcData.length} colors from manufacturer_colors (authoritative)`);
         setAllColors(mfcData.map(convertToVinylSwatch));
         setIsLoading(false);
@@ -125,8 +139,12 @@ export const ManufacturerColorBrowser = ({
 
   // Split colors by category
   const { colorChangeFilms, ppfFilms } = useMemo(() => {
-    const colorChange = allColors.filter((c) => !c.ppf);
+    // Color change = NOT PPF (ppf is false or null)
+    const colorChange = allColors.filter((c) => c.ppf !== true);
     const ppf = allColors.filter((c) => c.ppf === true);
+
+    console.log(`🎨 Category split: ${colorChange.length} color-change, ${ppf.length} PPF (total: ${allColors.length})`);
+
     return { colorChangeFilms: colorChange, ppfFilms: ppf };
   }, [allColors]);
 
