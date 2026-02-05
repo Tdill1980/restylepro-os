@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
-import { dataClient } from "@/integrations/supabase/dataClient";
+import { dataClient, EXTERNAL_DB_URL } from "@/integrations/supabase/dataClient";
 import { Loader2 } from "lucide-react";
+
+// Debug: Log the database URL on module load
+console.log("🔗 ManufacturerColorBrowser using database:", EXTERNAL_DB_URL);
 
 // NEW: Use manufacturer_colors as the SOLE source of truth
 interface ManufacturerColor {
@@ -84,7 +87,10 @@ export const ManufacturerColorBrowser = ({
   useEffect(() => {
     const fetchColors = async () => {
       setIsLoading(true);
-      
+
+      console.log("🔍 ManufacturerColorBrowser: Starting fetch...");
+      console.log("🌐 Using dataClient URL:", (dataClient as any).supabaseUrl || "unknown");
+
       // FIRST: Try manufacturer_colors (new authoritative table)
       // Note: Removed is_verified filter since newly inserted colors may not have it set
       const { data: mfcData, error: mfcError } = await dataClient
@@ -93,8 +99,11 @@ export const ManufacturerColorBrowser = ({
         .order("manufacturer", { ascending: true })
         .order("official_name", { ascending: true });
 
+      console.log("📊 Query complete. Data:", mfcData?.length || 0, "rows. Error:", mfcError);
+
       if (mfcError) {
         console.error("❌ Error fetching manufacturer_colors:", mfcError);
+        console.error("❌ Error details:", JSON.stringify(mfcError, null, 2));
       }
 
       console.log(`📊 manufacturer_colors query returned ${mfcData?.length || 0} rows`);
