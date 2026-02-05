@@ -1,9 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { dataClient, EXTERNAL_DB_URL } from "@/integrations/supabase/dataClient";
+import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-
-// Debug: Log the database URL on module load
-console.log("🔗 ManufacturerColorBrowser using database:", EXTERNAL_DB_URL);
 
 // NEW: Use manufacturer_colors as the SOLE source of truth
 interface ManufacturerColor {
@@ -82,20 +79,22 @@ export const ManufacturerColorBrowser = ({
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>("color-change");
   const [selectedManufacturer, setSelectedManufacturer] = useState<string | null>(null);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Fetch from manufacturer_colors (authoritative source)
   useEffect(() => {
     const fetchColors = async () => {
       setIsLoading(true);
+      setFetchError(null);
 
-      console.log("🔍 ManufacturerColorBrowser: Starting fetch...");
-      console.log("🌐 Using dataClient URL:", (dataClient as any).supabaseUrl || "unknown");
+      console.log("🔍 ManufacturerColorBrowser: Starting fetch from manufacturer_colors...");
 
       // FIRST: Try manufacturer_colors (new authoritative table)
-      // Note: Removed is_verified filter since newly inserted colors may not have it set
-      const { data: mfcData, error: mfcError } = await dataClient
+      // Include both verified=true AND verified=NULL rows
+      const { data: mfcData, error: mfcError } = await supabase
         .from("manufacturer_colors")
         .select("*")
+        .or('is_verified.eq.true,is_verified.is.null')
         .order("manufacturer", { ascending: true })
         .order("official_name", { ascending: true });
 
@@ -104,6 +103,13 @@ export const ManufacturerColorBrowser = ({
       if (mfcError) {
         console.error("❌ Error fetching manufacturer_colors:", mfcError);
         console.error("❌ Error details:", JSON.stringify(mfcError, null, 2));
+        console.error("❌ LIKELY CAUSE: RLS policy is blocking reads. Run this SQL in Supabase SQL Editor:");
+        console.error(`
+-- Run this in External Supabase SQL Editor (kfapjdyythzyvnpdeghu)
+DROP POLICY IF EXISTS "Anyone can view verified manufacturer colors" ON public.manufacturer_colors;
+CREATE POLICY "Anyone can read manufacturer colors" ON public.manufacturer_colors FOR SELECT USING (true);
+        `);
+        setFetchError("Database access blocked. Check console for RLS fix instructions.");
       }
 
       console.log(`📊 manufacturer_colors query returned ${mfcData?.length || 0} rows`);
@@ -124,8 +130,8 @@ export const ManufacturerColorBrowser = ({
       }
 
       // FALLBACK: Use vinyl_swatches if manufacturer_colors is empty
-      console.warn("⚠️ manufacturer_colors empty, falling back to vinyl_swatches");
-      const { data, error } = await dataClient
+      console.warn("⚠️ manufacturer_colors empty or blocked by RLS, falling back to vinyl_swatches");
+      const { data, error } = await supabase
         .from("vinyl_swatches")
         .select("*")
         .eq("verified", true)
@@ -134,6 +140,10 @@ export const ManufacturerColorBrowser = ({
 
       if (error) {
         console.error("Error fetching vinyl swatches:", error);
+        setFetchError("Database access blocked. RLS policy needs to be updated.");
+      } else if (!data || data.length === 0) {
+        // Both tables returned 0 - RLS is likely blocking
+        setFetchError("No colors found. RLS policy may be blocking reads - check browser console for fix.");
       } else {
         setAllColors((data || []).map(d => ({
           ...d,
@@ -243,6 +253,12 @@ export const ManufacturerColorBrowser = ({
               {mfr.name} ({mfr.count})
             </button>
           ))}
+        </div>
+      ) : fetchError ? (
+        <div className="text-center py-4 space-y-2">
+          <p className="text-amber-500 text-sm font-medium">Database Configuration Issue</p>
+          <p className="text-muted-foreground text-xs">{fetchError}</p>
+          <p className="text-muted-foreground text-xs">Open browser DevTools (F12) → Console tab for fix instructions</p>
         </div>
       ) : (
         <p className="text-muted-foreground text-center py-4 text-sm">

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { X, Check, Palette, AlertCircle, Loader2 } from "lucide-react";
-import { dataClient } from "@/integrations/supabase/dataClient";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ColorSelectorProps {
   presetLabel: string;
@@ -82,7 +82,7 @@ export const ColorSelector = ({
 
       // Prefer manufacturer_colors (authoritative)
       // Note: Removed is_verified filter - newly inserted colors may not have this flag set
-      const { data: mfcData, error: mfcError } = await dataClient
+      const { data: mfcData, error: mfcError } = await supabase
         .from('manufacturer_colors')
         .select('id, manufacturer, series, product_code, official_name, official_hex, finish, lab_l, lab_a, lab_b')
         .order('official_name', { ascending: true });
@@ -105,7 +105,7 @@ export const ColorSelector = ({
       }
 
       // Fallback (legacy)
-      const { data, error } = await dataClient
+      const { data, error } = await supabase
         .from('vinyl_swatches')
         .select('id, name, manufacturer, series, code, hex, finish, lab')
         .eq('verified', true)

@@ -1,5 +1,5 @@
 // --- WPW VINYL ENGINE ---
-import { dataClient } from "@/integrations/supabase/dataClient";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface VinylSwatch {
   id: string;
@@ -25,7 +25,7 @@ export interface VinylSwatch {
 }
 
 export const saveToVinylSwatches = async (swatchData: Partial<VinylSwatch>) => {
-  const { data: { user } } = await dataClient.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   
   const insertData: any = {
     manufacturer: swatchData.manufacturer,
@@ -47,7 +47,7 @@ export const saveToVinylSwatches = async (swatchData: Partial<VinylSwatch>) => {
     created_by: user?.id
   };
   
-  const { data, error } = await dataClient
+  const { data, error } = await supabase
     .from('vinyl_swatches')
     .insert(insertData)
     .select()
@@ -59,12 +59,18 @@ export const saveToVinylSwatches = async (swatchData: Partial<VinylSwatch>) => {
 
 export const loadAllVinylSwatches = async () => {
   // PRIORITY: Load from manufacturer_colors (authoritative source)
-  // Note: Removed is_verified filter - newly inserted colors may not have this flag set
-  const { data: mfcData, error: mfcError } = await dataClient
+  // Include both is_verified=true AND is_verified=NULL rows
+  const { data: mfcData, error: mfcError } = await supabase
     .from('manufacturer_colors')
     .select('*')
+    .or('is_verified.eq.true,is_verified.is.null')
     .order('manufacturer', { ascending: true });
   
+  if (mfcError) {
+    console.error("❌ vinyl-intelligence: Error fetching manufacturer_colors:", mfcError);
+    console.error("❌ LIKELY FIX: Run RLS policy SQL in External Supabase SQL Editor");
+  }
+
   if (mfcData && mfcData.length > 0) {
     console.log(`✅ Loaded ${mfcData.length} colors from manufacturer_colors`);
     // Convert manufacturer_colors to VinylSwatch format
@@ -89,7 +95,7 @@ export const loadAllVinylSwatches = async () => {
   
   // FALLBACK: vinyl_swatches if manufacturer_colors empty
   console.warn('⚠️ manufacturer_colors empty, using vinyl_swatches fallback');
-  const { data, error } = await dataClient
+  const { data, error } = await supabase
     .from('vinyl_swatches')
     .select('*')
     .eq('verified', true)
