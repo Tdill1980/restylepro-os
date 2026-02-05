@@ -67,10 +67,10 @@ export function useVinylDatabase(): UseVinylDatabaseReturn {
     async function fetchColors() {
       setIsLoading(true);
       try {
+        // Note: Removed is_verified filter - newly inserted colors may not have this flag set
         const { data: mfcData, error: mfcError } = await dataClient
           .from("manufacturer_colors")
           .select("id, manufacturer, series, product_code, official_name, official_hex, official_swatch_url, finish, is_ppf, is_verified")
-          .eq("is_verified", true)
           .order("manufacturer", { ascending: true })
           .order("official_name", { ascending: true });
 

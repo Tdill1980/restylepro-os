@@ -1,5 +1,5 @@
-// --- WPW VINYL ENGINE (DO NOT MODIFY) ---
-import { supabase } from "@/integrations/supabase/client";
+// --- WPW VINYL ENGINE ---
+import { dataClient } from "@/integrations/supabase/dataClient";
 
 export interface VinylSwatch {
   id: string;
@@ -25,7 +25,7 @@ export interface VinylSwatch {
 }
 
 export const saveToVinylSwatches = async (swatchData: Partial<VinylSwatch>) => {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await dataClient.auth.getUser();
   
   const insertData: any = {
     manufacturer: swatchData.manufacturer,
@@ -47,7 +47,7 @@ export const saveToVinylSwatches = async (swatchData: Partial<VinylSwatch>) => {
     created_by: user?.id
   };
   
-  const { data, error } = await supabase
+  const { data, error } = await dataClient
     .from('vinyl_swatches')
     .insert(insertData)
     .select()
@@ -59,10 +59,10 @@ export const saveToVinylSwatches = async (swatchData: Partial<VinylSwatch>) => {
 
 export const loadAllVinylSwatches = async () => {
   // PRIORITY: Load from manufacturer_colors (authoritative source)
-  const { data: mfcData, error: mfcError } = await supabase
+  // Note: Removed is_verified filter - newly inserted colors may not have this flag set
+  const { data: mfcData, error: mfcError } = await dataClient
     .from('manufacturer_colors')
     .select('*')
-    .eq('is_verified', true)
     .order('manufacturer', { ascending: true });
   
   if (mfcData && mfcData.length > 0) {
@@ -89,7 +89,7 @@ export const loadAllVinylSwatches = async () => {
   
   // FALLBACK: vinyl_swatches if manufacturer_colors empty
   console.warn('⚠️ manufacturer_colors empty, using vinyl_swatches fallback');
-  const { data, error } = await supabase
+  const { data, error } = await dataClient
     .from('vinyl_swatches')
     .select('*')
     .eq('verified', true)

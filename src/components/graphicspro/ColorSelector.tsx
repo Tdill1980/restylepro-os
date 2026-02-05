@@ -81,10 +81,10 @@ export const ColorSelector = ({
       setLoadingAll(true);
 
       // Prefer manufacturer_colors (authoritative)
+      // Note: Removed is_verified filter - newly inserted colors may not have this flag set
       const { data: mfcData, error: mfcError } = await dataClient
         .from('manufacturer_colors')
         .select('id, manufacturer, series, product_code, official_name, official_hex, finish, lab_l, lab_a, lab_b')
-        .eq('is_verified', true)
         .order('official_name', { ascending: true });
 
       if (mfcData && mfcData.length > 0) {
