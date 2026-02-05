@@ -2,7 +2,7 @@
 // Supports hierarchical Brand → Series → Finish → Color filtering
 
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dataClient } from "@/integrations/supabase/dataClient";
 
 export interface VinylSwatch {
   id: string;
@@ -67,7 +67,7 @@ export function useVinylDatabase(): UseVinylDatabaseReturn {
     async function fetchColors() {
       setIsLoading(true);
       try {
-        const { data: mfcData, error: mfcError } = await supabase
+        const { data: mfcData, error: mfcError } = await dataClient
           .from("manufacturer_colors")
           .select("id, manufacturer, series, product_code, official_name, official_hex, official_swatch_url, finish, is_ppf, is_verified")
           .eq("is_verified", true)
@@ -101,7 +101,7 @@ export function useVinylDatabase(): UseVinylDatabaseReturn {
         }
 
         // Fallback: legacy table
-        const { data, error } = await supabase
+        const { data, error } = await dataClient
           .from("vinyl_swatches")
           .select("*")
           .eq("verified", true)
