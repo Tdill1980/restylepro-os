@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import { createExternalClient } from "../_shared/external-db.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,10 +27,8 @@ serve(async (req) => {
       throw new Error('GOOGLE_AI_API_KEY not configured');
     }
 
-    // Fetch the actual hex color from the database for accurate color matching
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Fetch the actual hex color from the EXTERNAL database for accurate color matching
+    const supabase = createExternalClient();
 
     let hexColor = null;
     if (swatchId || colorLibrary) {

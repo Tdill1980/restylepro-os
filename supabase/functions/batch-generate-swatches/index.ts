@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import { createExternalClient, getExternalSupabaseUrl, getExternalServiceRoleKey } from "../_shared/external-db.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,10 +14,11 @@ serve(async (req) => {
 
   try {
     const { colorLibrary, limit = 10 } = await req.json();
-    
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Connect to EXTERNAL database
+    const supabase = createExternalClient();
+    const supabaseUrl = getExternalSupabaseUrl();
+    const supabaseKey = getExternalServiceRoleKey();
 
     console.log(`Batch generating swatches for ${colorLibrary}, limit: ${limit}`);
 

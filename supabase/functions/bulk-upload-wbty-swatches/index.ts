@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createExternalClient } from "../_shared/external-db.ts";
 import JSZip from 'https://esm.sh/jszip@3.10.1';
 
 const corsHeaders = {
@@ -19,11 +19,9 @@ Deno.serve(async (req) => {
 
   try {
     console.log('Bulk upload request received');
-    
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+
+    // Connect to EXTERNAL database for data operations
+    const supabase = createExternalClient();
 
     // Get the ZIP file from the request
     const formData = await req.formData();

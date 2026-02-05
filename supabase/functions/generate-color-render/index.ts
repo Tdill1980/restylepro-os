@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createExternalClient, getExternalSupabaseUrl, getExternalServiceRoleKey } from "../_shared/external-db.ts";
 import { SPIN_VIEW_ANGLES, getSpinViewAngle, isValidAngle } from "../_shared/spin-view-angles.ts";
 import { buildFadeWrapsPrompt } from "../_shared/fadewraps-prompt-builder.ts";
 import { buildApproveModePrompt } from "../_shared/approvemode-prompt-builder.ts";
@@ -295,9 +295,9 @@ serve(async (req) => {
 
     // ============= CONTENT MODERATION =============
     // Initialize Supabase client early for moderation checks
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseUrl = getExternalSupabaseUrl();
+    const supabaseKey = getExternalServiceRoleKey();
+    const supabase = createExternalClient();
 
     // Check if user is blocked
     const { data: blockedUser } = await supabase
@@ -1457,15 +1457,15 @@ The reference image is your PRIMARY source of design direction.
           console.log(`🔍 Search query: ${fadeReferenceInfo.searchQuery}`);
           
           try {
-            const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-            const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-            
-            if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-              const searchResponse = await fetch(`${SUPABASE_URL}/functions/v1/search-vinyl-product-images`, {
+            const externalUrl = getExternalSupabaseUrl();
+            const externalKey = getExternalServiceRoleKey();
+
+            if (externalUrl && externalKey) {
+              const searchResponse = await fetch(`${externalUrl}/functions/v1/search-vinyl-product-images`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+                  'Authorization': `Bearer ${externalKey}`
                 },
                 body: JSON.stringify({
                   query: fadeReferenceInfo.searchQuery,

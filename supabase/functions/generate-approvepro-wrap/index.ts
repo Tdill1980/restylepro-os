@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createExternalClient } from "../_shared/external-db.ts";
 import { angleEngine } from "../_shared/angleEngine.ts";
 import { buildPlacementProfile, getDefaultVehicleTemplate, applyPlacementProfile, generatePlacementInstructions } from "../_shared/placementProfileEngine.ts";
 import { ASPECT_RATIO_REQUIREMENT } from "../_shared/aspect-ratio-requirement.ts";
@@ -36,10 +36,8 @@ serve(async (req) => {
       throw new Error('Vehicle info and design URL are required');
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    // Connect to EXTERNAL database (your data lives there)
+    const supabase = createExternalClient();
 
     // Build placement profile from uploaded design
     const designPanels = { 'full-wrap': designUrl };

@@ -16,7 +16,7 @@
 // ============================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createExternalClient } from "../_shared/external-db.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -464,8 +464,6 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const googleAiApiKey = Deno.env.get('GOOGLE_AI_API_KEY');
   const dataForSeoKey = Deno.env.get('DATAFORSEO_API_KEY');
 
@@ -475,11 +473,11 @@ serve(async (req) => {
   }
 
   if (!dataForSeoKey) {
-    return new Response(JSON.stringify({ error: 'DATAFORSEO_API_KEY not configured' }), 
+    return new Response(JSON.stringify({ error: 'DATAFORSEO_API_KEY not configured' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createExternalClient();
 
   try {
     const body = await req.json().catch(() => ({}));

@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createExternalClient } from "../_shared/external-db.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -175,11 +175,9 @@ Respond ONLY with valid JSON in this exact format:
     // Log the result
     console.log('✅ Fade quality analysis complete:', JSON.stringify(result, null, 2));
 
-    // If we have a renderId, save the quality rating to the database
+    // If we have a renderId, save the quality rating to the EXTERNAL database
     if (renderId) {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
+      const supabase = createExternalClient();
 
       const { error: insertError } = await supabase
         .from('render_quality_ratings')

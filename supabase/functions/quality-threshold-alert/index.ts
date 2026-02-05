@@ -1,8 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
-
-const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+import { createExternalClient, getExternalSupabaseUrl, getExternalServiceRoleKey } from "../_shared/external-db.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +18,7 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const { renderId, renderType }: AlertRequest = await req.json();
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createExternalClient();
 
     // Check flag threshold (3+ flags on same render)
     const { data: flags, error: flagError } = await supabase
@@ -72,12 +69,12 @@ const handler = async (req: Request): Promise<Response> => {
 
       // Call the templated email function
       const templateResponse = await fetch(
-        `${supabaseUrl}/functions/v1/send-templated-email`,
+        `${getExternalSupabaseUrl()}/functions/v1/send-templated-email`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseServiceKey}`
+            'Authorization': `Bearer ${getExternalServiceRoleKey()}`
           },
           body: JSON.stringify({
             templateSlug: 'quality-alert',

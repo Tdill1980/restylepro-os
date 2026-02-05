@@ -1,9 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
+import { createExternalClient } from "../_shared/external-db.ts";
 
 const googleApiKey = Deno.env.get("GOOGLE_AI_API_KEY")!;
-const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const resendApiKey = Deno.env.get("RESEND_API_KEY")!;
 
 const corsHeaders = {
@@ -24,7 +22,8 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const { renderType, minFlags = 3, autoRegenerate = false }: AutoFixRequest = await req.json();
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // Connect to EXTERNAL database for data operations
+    const supabase = createExternalClient();
 
     console.log(`🔍 Analyzing ${renderType} renders for quality issues...`);
 

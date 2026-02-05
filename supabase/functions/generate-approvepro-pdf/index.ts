@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createExternalClient, getExternalSupabaseUrl } from "../_shared/external-db.ts";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 
 const corsHeaders = {
@@ -88,10 +88,8 @@ serve(async (req) => {
       includeTerms: payload.includeTerms,
     });
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    // Connect to EXTERNAL database for storage operations
+    const supabase = createExternalClient();
 
     const pdf = await PDFDocument.create();
     const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -423,7 +421,7 @@ serve(async (req) => {
       throw new Error(`Failed to upload PDF: ${uploadError.message}`);
     }
 
-    const publicUrl = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/wrap-files/${fileName}`;
+    const publicUrl = `${getExternalSupabaseUrl()}/storage/v1/object/public/wrap-files/${fileName}`;
 
     console.log("✅ PDF generated successfully:", publicUrl);
 

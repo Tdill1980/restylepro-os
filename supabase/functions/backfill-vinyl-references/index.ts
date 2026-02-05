@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createExternalClient, getExternalSupabaseUrl, getExternalServiceRoleKey } from "../_shared/external-db.ts";
 
 // Declare EdgeRuntime for Supabase background tasks
 declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
@@ -76,7 +76,7 @@ async function processBackfill(
   manufacturerFilter: string | null,
   forceRefresh: boolean
 ) {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = createExternalClient();
 
   console.log(`Starting backfill - batch: ${batchSize}, offset: ${startFrom}, manufacturer: ${manufacturerFilter || 'all'}`);
 
@@ -194,7 +194,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createExternalClient();
 
     // Parse request body for optional parameters
     let batchSize = 50;

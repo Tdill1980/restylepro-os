@@ -1,7 +1,7 @@
 // Seed Curated Colors - Seeds all 12 brand datasets to vinyl_swatches table
 // This function uses hardcoded curated data instead of web scraping
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createExternalClient } from "../_shared/external-db.ts";
 import { brandDatasets, getAllColors, getColorsByBrand, getDatasetStats, SeedColorEntry } from "../_shared/seed-data/index.ts";
 
 const corsHeaders = {
@@ -19,9 +19,7 @@ Deno.serve(async (req) => {
     const { brand, dryRun = false, seedAll = false } = await req.json();
 
     // Initialize Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createExternalClient();
 
     let colorsToSeed: SeedColorEntry[] = [];
 

@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { createExternalClient, getExternalSupabaseUrl, getExternalServiceRoleKey } from "../_shared/external-db.ts";
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
   apiVersion: '2024-06-20',
@@ -32,10 +32,7 @@ serve(async (req) => {
 
     console.log('Webhook event received:', event.type);
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const supabase = createExternalClient();
 
     switch (event.type) {
       case 'customer.subscription.created':
@@ -253,11 +250,11 @@ serve(async (req) => {
         // Send email with download link (only for production files)
         if (purchase_type === 'production_files' && downloadUrl) {
           try {
-            const emailResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-design-pack-email`, {
+            const emailResponse = await fetch(`${getExternalSupabaseUrl()}/functions/v1/send-design-pack-email`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+                'Authorization': `Bearer ${getExternalServiceRoleKey()}`
               },
               body: JSON.stringify({
                 email: user_email || session.customer_email,

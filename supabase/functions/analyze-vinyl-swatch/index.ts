@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createExternalClient } from "../_shared/external-db.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -203,13 +203,8 @@ serve(async (req) => {
     console.log('📸 Analyzing swatch:', swatchImageUrl);
     console.log('📁 Original filename:', uploadedFileName);
 
-    // Create Supabase client for database lookup
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    let supabase: any = null;
-    if (supabaseUrl && supabaseKey) {
-      supabase = createClient(supabaseUrl, supabaseKey);
-    }
+    // Create EXTERNAL Supabase client for database lookup
+    const supabase = createExternalClient();
 
     // Build AI analysis prompt with STRICT JSON requirement
     const analysisPrompt = `You are an expert at analyzing vinyl wrap swatch images.
@@ -343,7 +338,7 @@ REMEMBER: ALWAYS respond with valid JSON. Never explain in plain text.`;
     }
 
     // Database lookup for verified match
-    if (supabase && analysis.manufacturer && analysis.manufacturer !== 'Unknown') {
+    if (analysis.manufacturer && analysis.manufacturer !== 'Unknown') {
       try {
         console.log('🔍 Looking up in vinyl_swatches database...');
         

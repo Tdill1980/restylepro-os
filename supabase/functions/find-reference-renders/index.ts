@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createExternalClient, getExternalSupabaseUrl, getExternalServiceRoleKey } from "../_shared/external-db.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,9 +16,10 @@ serve(async (req) => {
     
     console.log('🔍 Finding reference renders:', { manufacturer, colorName, finish, hex, swatchId });
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Connect to EXTERNAL database for data operations
+    const supabase = createExternalClient();
+    const supabaseUrl = getExternalSupabaseUrl();
+    const supabaseKey = getExternalServiceRoleKey();
 
     // ============= PRIORITY 1: CHECK STORED VINYL REFERENCE IMAGES (FASTEST) =============
     // These are pre-fetched real product photos stored in our database

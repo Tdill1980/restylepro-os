@@ -1,10 +1,7 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createExternalClient, getExternalSupabaseUrl } from "../_shared/external-db.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-);
+const supabase = createExternalClient();
 
 const MIN_CONFIDENCE = 0.75;
 const BATCH_SIZE = 5;
@@ -73,7 +70,7 @@ Deno.serve(async (req) => {
         batch.map(async (swatch) => {
           try {
             const response = await fetch(
-              `${Deno.env.get("SUPABASE_URL")}/functions/v1/ingest-all-wrap-swatch-colors`,
+              `${getExternalSupabaseUrl()}/functions/v1/ingest-all-wrap-swatch-colors`,
               {
                 method: "POST",
                 headers: { 

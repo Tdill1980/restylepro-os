@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createExternalClient } from "../_shared/external-db.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,10 +19,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
+    // Connect to EXTERNAL database for data operations
+    const supabase = createExternalClient();
 
     const body: TrackEventRequest = await req.json();
     const { eventType, quoteId, productType, metadata } = body;

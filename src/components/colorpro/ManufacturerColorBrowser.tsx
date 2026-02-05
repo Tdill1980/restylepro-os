@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dataClient } from "@/integrations/supabase/dataClient";
 import { Loader2 } from "lucide-react";
 
 // NEW: Use manufacturer_colors as the SOLE source of truth
@@ -86,7 +86,7 @@ export const ManufacturerColorBrowser = ({
       setIsLoading(true);
       
       // FIRST: Try manufacturer_colors (new authoritative table)
-      const { data: mfcData, error: mfcError } = await supabase
+      const { data: mfcData, error: mfcError } = await dataClient
         .from("manufacturer_colors")
         .select("*")
         .eq("is_verified", true)
@@ -102,7 +102,7 @@ export const ManufacturerColorBrowser = ({
 
       // FALLBACK: Use vinyl_swatches if manufacturer_colors is empty
       console.warn("⚠️ manufacturer_colors empty, falling back to vinyl_swatches");
-      const { data, error } = await supabase
+      const { data, error } = await dataClient
         .from("vinyl_swatches")
         .select("*")
         .eq("verified", true)
